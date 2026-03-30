@@ -54,9 +54,9 @@ void run_singlepoint_test() {
     return;
   }
 
-  // Run the singlepoint calculation
+  // Run the singlepoint calculation (nullptr lattice: non-PBC, reuse stored)
   c_gfnff_calculator_singlepoint(&calc, nat, at, xyz, &energy, gradient,
-                                 sigma, &iostat);
+                                 sigma, nullptr, &iostat);
 
   if (iostat == 0) {
     std::cout << "Singlepoint calculation successful.\n";
@@ -125,7 +125,7 @@ void run_pbc_singlepoint_test() {
   }
 
   c_gfnff_calculator_singlepoint(&calc, nat, at, xyz, &energy, gradient,
-                                 sigma, &iostat);
+                                 sigma, lattice, &iostat);
 
   if (iostat == 0) {
     std::cout << "PBC singlepoint calculation successful.\n";

@@ -54,9 +54,9 @@ int main() {
   double sigma[3][3];      // stress tensor (zero for non-PBC)
   int iostat;
 
-  // Call the singlepoint function
+  // Call the singlepoint function (NULL lattice: non-PBC, reuse stored)
   c_gfnff_calculator_singlepoint(&calc, nat, at, xyz, &energy, gradient,
-                                 sigma, &iostat);
+                                 sigma, NULL, &iostat);
 
   // Check the result and print it
   if (iostat == 0) {
@@ -135,7 +135,7 @@ int main() {
 
   c_gfnff_calculator_singlepoint(&calc_pbc, nat_pbc, at_pbc, xyz_pbc,
                                  &energy_pbc, gradient_pbc, sigma_pbc,
-                                 &iostat_pbc);
+                                 lattice_sio2, &iostat_pbc);
 
   if (iostat_pbc == 0) {
     printf("PBC singlepoint calculation successful.\n");

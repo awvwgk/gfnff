@@ -126,6 +126,12 @@ class GFNFFCalculator:
         sigma = np.zeros((3, 3), dtype=np.float64, order="C")
         iostat = ctypes.c_int(0)
 
+        if lattice is not None:
+            lat = np.ascontiguousarray(lattice, dtype=np.float64)
+            lattice_ptr = lat.ctypes.data_as(ctypes.c_void_p)
+        else:
+            lattice_ptr = None
+
         _lib.c_gfnff_calculator_singlepoint(
             ctypes.byref(self._handle),
             ctypes.c_int(nat),
@@ -134,6 +140,7 @@ class GFNFFCalculator:
             ctypes.byref(energy_out),
             gradient,
             sigma,
+            lattice_ptr,
             ctypes.byref(iostat),
         )
 

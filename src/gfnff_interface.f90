@@ -135,11 +135,11 @@ contains  !> MODULE PROCEDURES START HERE
     if (present(lattice)) lattice_loc(:,:) = lattice(:,:)
 
 ! ── update lattice, wsc, ... ──────────────────────────────────────────────────
-    if (any(abs(lattice_loc-dat%cell%lattice) .gt. lthr)) then
-      call dat%cell%init(lattice_loc)
-    end if
     if (dat%cell%npbc > 0) then
-      call dat%cell%init_wsc(nat,at,xyz)
+      if (any(abs(lattice_loc-dat%cell%lattice) .gt. lthr)) then
+        call dat%cell%init(lattice_loc)
+        call dat%cell%init_wsc(nat,at,xyz)
+      end if
     end if
 
 ! ── call E+Grd ────────────────────────────────────────────────────────────────
@@ -295,7 +295,10 @@ contains  !> MODULE PROCEDURES START HERE
 
 !> Periodic boundary conditions setup
     if (present(npbc)) dat%cell%npbc = npbc
-    if (present(lattice)) call dat%cell%init(lattice)
+    if (present(lattice)) then
+      call dat%cell%init(lattice)
+      call dat%cell%init_wsc(nat,at,xyz)
+    end if
 
 !> except restart-related options
     restart = dat%restart

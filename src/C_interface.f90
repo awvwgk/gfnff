@@ -181,22 +181,24 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 
   subroutine c_gfnff_calculator_singlepoint(c_calculator,c_nat,c_at,c_xyz, &
-    &                                           c_energy,c_gradient,c_sigma,c_iostat) &
+    &                                       c_energy,c_gradient,c_sigma,c_lattice,c_iostat) &
     &                        bind(C,name="c_gfnff_calculator_singlepoint")
     !***********************************************************
     !* Compute energy, gradient and stress tensor for the
     !* current geometry.
     !*
     !* INPUT:
-    !*   c_calculator  - opaque handle (from init)
-    !*   c_nat         - number of atoms
-    !*   c_at(c_nat)   - atomic numbers
-    !*   c_xyz[nat][3] - Cartesian coordinates (Bohr)
+    !*   c_calculator    - opaque handle (from init)
+    !*   c_nat           - number of atoms
+    !*   c_at(c_nat)     - atomic numbers
+    !*   c_xyz[nat][3]   - Cartesian coordinates (Bohr)
+    !*   c_lattice[3][3] - new lattice vectors (Bohr); pass NULL to reuse
+    !*                     the stored lattice (non-PBC or unchanged cell)
     !* OUTPUT:
-    !*   c_energy      - total energy (Hartree)
+    !*   c_energy        - total energy (Hartree)
     !*   c_gradient[nat][3] - gradient (Eh/Bohr)
-    !*   c_sigma[3][3] - stress tensor (Hartree); zero for non-PBC
-    !*   c_iostat      - error status (0 = success)
+    !*   c_sigma[3][3]   - stress tensor (Hartree); zero for non-PBC
+    !*   c_iostat        - error status (0 = success)
     !***********************************************************
     implicit none
     !> Input arguments from C
@@ -209,6 +211,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(c_double),intent(out) :: c_energy
     real(c_double),target,intent(out) :: c_gradient(3,*) !> NOTE Fortran/C matrix orders
     real(c_double),intent(out) :: c_sigma(3,3)            !> stress tensor (Eh); 0 for non-PBC
+    type(c_ptr),value,intent(in) :: c_lattice             !> lattice[3][3] or c_null_ptr
     integer(c_int),intent(out) :: c_iostat
 
     !> Local Fortran variables
@@ -217,6 +220,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,pointer :: at(:)
     real(wp),pointer :: xyz(:,:)
     real(wp),pointer :: grad(:,:)
+    real(wp),pointer :: lattice_loc(:,:)
     real(wp) :: energy
     real(wp) :: sigma_loc(3,3)
     integer :: iostat
@@ -230,11 +234,15 @@ contains  !> MODULE PROCEDURES START HERE
     !> Set the integer variable
     nat = c_nat
 
-    !> Call the Fortran subroutine, passing the stored lattice so that
-    !> the singlepoint does not reinitialize the cell with a zero lattice
-    !> (which would corrupt PBC calculations).
-    call calc_ptr%singlepoint(nat,at,xyz,energy,grad,iostat=iostat, &
-    &                         lattice=calc_ptr%cell%lattice,sigma=sigma_loc)
+    !> Use caller-supplied lattice if provided, otherwise reuse stored lattice.
+    if (c_associated(c_lattice)) then
+      call c_f_pointer(c_lattice,lattice_loc,[3,3])
+      call calc_ptr%singlepoint(nat,at,xyz,energy,grad,iostat=iostat, &
+      &                         lattice=lattice_loc,sigma=sigma_loc)
+    else
+      call calc_ptr%singlepoint(nat,at,xyz,energy,grad,iostat=iostat, &
+      &                         lattice=calc_ptr%cell%lattice,sigma=sigma_loc)
+    end if
 
     !> Pass back the results to C variables
     c_energy = energy

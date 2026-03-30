@@ -33,11 +33,13 @@ extern void c_gfnff_calculator_deallocate(c_gfnff_calculator *calculator);
 
 // Declare the singlepoint calculator
 // sigma[3][3] receives the stress tensor in Hartree (zero for non-PBC systems)
+// lattice[3][3]: updated lattice vectors (Bohr); pass NULL to reuse stored lattice
 extern void c_gfnff_calculator_singlepoint(c_gfnff_calculator *calculator,
                                               int nat, int *at,
                                               double (*xyz)[3], double *energy,
                                               double (*gradient)[3],
                                               double sigma[3][3],
+                                              double (*lattice)[3],
                                               int *iostat);
 
 // Declate the print routine

@@ -65,12 +65,15 @@ class GFNFF(Calculator):
     # ------------------------------------------------------------------
 
     def _needs_reinit(self, atoms, system_changes) -> bool:
-        """Topology must be rebuilt when atom types or PBC/cell change."""
+        """Topology must be rebuilt when atom types or PBC flags change.
+        Cell-only changes are handled by passing the updated lattice to
+        singlepoint, which updates the cell in-place without redoing the
+        full topology setup."""
         if self._gfnff is None:
             return True
         if not np.array_equal(atoms.numbers, self._last_numbers):
             return True
-        if "cell" in system_changes or "pbc" in system_changes:
+        if "pbc" in system_changes and not np.array_equal(atoms.pbc, self._last_pbc):
             return True
         return False
 

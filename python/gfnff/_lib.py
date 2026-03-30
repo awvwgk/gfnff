@@ -104,7 +104,9 @@ _lib.c_gfnff_calculator_init_pbc.argtypes = [
 #     c_gfnff_calculator *calculator,
 #     int nat, int *at, double (*xyz)[3],
 #     double *energy, double (*gradient)[3],
-#     double sigma[3][3], int *iostat);
+#     double sigma[3][3],
+#     double (*lattice)[3],   // NULL to reuse stored lattice
+#     int *iostat);
 _lib.c_gfnff_calculator_singlepoint.restype = None
 _lib.c_gfnff_calculator_singlepoint.argtypes = [
     ctypes.POINTER(_CGFNFFCalculator),  # calculator
@@ -114,6 +116,7 @@ _lib.c_gfnff_calculator_singlepoint.argtypes = [
     ctypes.POINTER(ctypes.c_double),     # energy (out)
     _xyz_type,                           # gradient[nat][3] (out)
     _lattice_type,                       # sigma[3][3] (out); zero for non-PBC
+    ctypes.c_void_p,                     # lattice[3][3] or NULL
     ctypes.POINTER(ctypes.c_int),        # iostat (out)
 ]
 
