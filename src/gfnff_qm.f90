@@ -1,7 +1,7 @@
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 ! This file is part of gfnff.
 !
-! Copyright (C) 2023 Philipp Pracht
+! Copyright (C) 2023-2026 Philipp Pracht
 !
 ! gfnff is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -15,13 +15,13 @@
 !
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with gfnff. If not, see <https://www.gnu.org/licenses/>.
-!--------------------------------------------------------------------------------!
+! ──────────────────────────────────────────────────────────────────────────────
 !> The original (unmodified) source code can be found under the GNU LGPL 3.0 license
 !> Copyright (C) 2019-2020 Sebastian Ehlert, Sebastian Spicher, Stefan Grimme
 !> at https://github.com/grimme-lab/xtb
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 module gfnff_qm_setup
-  use iso_fortran_env,only:wp => real64,sp => real64, stdout=>output_unit
+  use iso_fortran_env,only:wp => real64,sp => real64,stdout => output_unit
   use gfnff_data_types,only:TGFFData,init,TGFFGenerator,TGFFTopology
   implicit none
   private
@@ -36,14 +36,22 @@ contains  !> MODULE PROCEDURES START HERE
 ! solve QM Hamiltonian A in overlap basis S (if ovlp=.true., ZDO otherwise)
 ! and return density matrix in A (and energy weighted density in S if ovlp=.true.)
 ! ndim is the dimension of the problem for nel electrons with nopen more alpha than beta
-  subroutine gfnffqmsolve(pr,A,S,ovlp,et,ndim,nopen,nel,eel,focc,e,io)
+  subroutine gfnffqmsolve(printlevel,A,S,ovlp,et,ndim,nopen,nel,eel,focc,e,io,printunit)
+    !***********************************************************************
+    !* Solve the GFN-FF QM Hamiltonian (Hueckel/EEQ).
+    !* printlevel >= 1: print diag errors
+    !* printlevel >= 2: print biradical detection
+    !* printlevel >= 3: print Fermi smearing info
+    !* printunit: output unit (default: stdout)
+    !***********************************************************************
     implicit none
     character(len=*),parameter :: source = 'gfnffqmsolve()'
     integer :: ndim      ! # basis
     integer :: nopen     ! # of open shells
     integer :: nel       ! # of electrons
     logical :: ovlp      ! in overlap basis?
-    logical :: pr        !
+    integer,intent(in) :: printlevel  !< verbosity level (0=silent,1=errors,2=info,3=verbose)
+    integer,intent(in),optional :: printunit  !< output unit (default: stdout)
     real(wp) :: et       ! electronic temp Fermi smear
     real(wp) :: eel      ! electronic energy = sum_occ nocc*eps
     real(wp) :: focc(ndim)! occupations
@@ -51,13 +59,18 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: A(ndim,ndim)
     real(wp) :: S(ndim,ndim)
     integer,intent(out) :: io ! output status
-    integer  :: ihomoa,ihomob,i,liwork,info,lwork
+    integer  :: ihomoa,ihomob,i,liwork,info,lwork,myunit
     real(wp) :: ga,gb,efa,efb,nfoda,nfodb
     real(wp),allocatable :: X(:,:)
     real(wp),allocatable :: focca(:),foccb(:),aux(:)
     integer,allocatable  :: iwork(:),ifail(:)
     !> LAPACK
     external :: dsyev,dsygvd
+    if (present(printunit)) then
+      myunit = printunit
+    else
+      myunit = stdout
+    end if
 
     io = 0
 
@@ -98,20 +111,20 @@ contains  !> MODULE PROCEDURES START HERE
     e = e*0.1_wp*27.2113957_wp
 
     if (info .ne. 0) then
-      write (stdout,*) 'diag error in ',source
-      io = info 
+      if (printlevel >= 1) write (myunit,*) 'diag error in ',source
+      io = info
     end if
 
     if (et .gt. 1.d-3) then
 ! Fermi smearing, convert restricted occ first to alpha/beta
       call occu(ndim,nel,nopen,ihomoa,ihomob,focca,foccb)
       if (ihomoa .le. ndim.and.ihomoa .gt. 0) then
-        call fermismear(.false.,ndim,ihomoa,et,e,focca,nfoda,efa,ga)
+        call fermismear(printlevel,ndim,ihomoa,et,e,focca,nfoda,efa,ga,myunit)
       else
         focca = 0
       end if
       if (ihomob .le. ndim.and.ihomob .gt. 0) then
-        call fermismear(.false.,ndim,ihomob,et,e,foccb,nfodb,efb,gb)
+        call fermismear(printlevel,ndim,ihomob,et,e,foccb,nfodb,efb,gb,myunit)
       else
         foccb = 0
       end if
@@ -122,10 +135,10 @@ contains  !> MODULE PROCEDURES START HERE
           do i = 1,nel/2
             focc(i) = 2.0d0
           end do
-          if(pr)then
-          write (stdout,*) 'perfect biradical detected at FT-HMO level. Breaking the symmetry'
-          write (stdout,*) 'because its assumed to be an anit-aromatic system like COT or CB.'
-          endif
+          if (printlevel >= 2) then
+            write (myunit,*) 'perfect biradical detected at FT-HMO level. Breaking the symmetry'
+            write (myunit,*) 'because its assumed to be an anit-aromatic system like COT or CB.'
+          end if
         end if
       end if
     else
@@ -154,7 +167,12 @@ contains  !> MODULE PROCEDURES START HERE
   end subroutine gfnffqmsolve
 !========================================================================================!
 
-  subroutine fermismear(prt,norbs,nel,t,eig,occ,fod,e_fermi,s)
+  subroutine fermismear(printlevel,norbs,nel,t,eig,occ,fod,e_fermi,s,printunit)
+    !***********************************************************************
+    !* Fermi smearing for fractional occupation numbers.
+    !* printlevel >= 3: print Fermi energy and FOD
+    !* printunit: output unit (default: stdout)
+    !***********************************************************************
     integer,intent(in)  :: norbs
     integer,intent(in)  :: nel
     real(wp),intent(in)  :: eig(norbs)
@@ -162,7 +180,9 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(in)  :: t
     real(wp),intent(out) :: fod
     real(wp),intent(out) :: e_fermi
-    logical,intent(in)  :: prt
+    integer,intent(in)  :: printlevel  !< verbosity level
+    integer,intent(in),optional :: printunit  !< output unit (default: stdout)
+    integer :: myunit
 
     real(wp) :: bkt,occt,total_number
     real(wp) :: total_dfermi,dfermifunct,fermifunct,s,change_fermi
@@ -171,7 +191,13 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),parameter :: kB = 3.166808578545117e-06_wp
     real(wp),parameter :: boltz = kB*autoev
     real(wp),parameter :: thr = 1.d-9
-    integer :: ncycle,i,j,m,k,i1,i2
+    integer :: ncycle,i
+
+    if (present(printunit)) then
+      myunit = printunit
+    else
+      myunit = stdout
+    end if
 
     bkt = boltz*t
 
@@ -212,8 +238,8 @@ contains  !> MODULE PROCEDURES START HERE
     end do
     s = s*kB*t
 
-    if (prt) then
-      write (*,'('' t,e(fermi),nfod : '',2f10.3,f10.6)') t,e_fermi,fod
+    if (printlevel >= 3) then
+      write (myunit,'('' t,e(fermi),nfod : '',2f10.3,f10.6)') t,e_fermi,fod
     end if
 
   end subroutine fermismear

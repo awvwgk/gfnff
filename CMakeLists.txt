@@ -11,7 +11,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Lesser General Public License for more details.
 
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.21)
 
 project(
   "gfnff"
@@ -35,8 +35,17 @@ add_subdirectory("config")
 # OpenMP parallelization
 if(NOT TARGET "OpenMP::OpenMP_Fortran")
   if (WITH_OpenMP)
-    find_package("OpenMP" REQUIRED)
-    add_compile_definitions(WITH_OpenMP) 
+    # Do not use REQUIRED: on macOS the C/CXX compiler (Apple Clang) has no
+    # native OpenMP support, so find_package(OpenMP REQUIRED) would fail for
+    # those languages even though gfortran supports it fine.  We only need
+    # Fortran-level OpenMP; check OpenMP_Fortran_FOUND after the search.
+    find_package("OpenMP")
+    if(OpenMP_Fortran_FOUND)
+      add_compile_definitions(WITH_OpenMP)
+    else()
+      message(STATUS "OpenMP not found for Fortran; building without OpenMP parallelization")
+      add_library("OpenMP::OpenMP_Fortran" INTERFACE IMPORTED)
+    endif()
   else()
     # Create dummy library
     add_library("OpenMP::OpenMP_Fortran" INTERFACE IMPORTED)
@@ -59,11 +68,6 @@ set(
   "LAPACK::LAPACK"
   "$<$<VERSION_LESS:${CMAKE_VERSION},3.20>:BLAS::BLAS>"
 )
-
-# Custom compile arguments
-IF(WITH_GBSA)
-add_definitions(-DWITH_GBSA)
-ENDIF()
 
 # gfnff-lib sources
 set(srcs)
@@ -139,8 +143,7 @@ install(
 # Package license files
 install(
   FILES
-  "COPYING"
-  "COPYING.LESSER"
+  "LICENSE"
   DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/${PROJECT_NAME}"
 )
 
@@ -153,26 +156,51 @@ endif()
 ###############################################################################
 ################################ python bindings ##############################
 ###############################################################################
-# if (PYTHON_BINDINGS)
-# find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
-# find_package(pybind11 REQUIRED)
-# 
-# # Add the pybind11 module
-# #pybind11_add_module(_gfnff src/pygfnff.cpp)
-# python_add_library(_gfnff src/pygfnff.cpp WITH_SOABI)
-# 
-# # Link against any existing libraries if necessary
-# target_link_libraries(_gfnff 
-#                       PRIVATE 
-#                       "${PROJECT_NAME}-lib"
-#                       pybind11::headers)
-# 
-# # This is passing in the version as a define
-# target_compile_definitions(_gfnff PRIVATE VERSION_INFO=${PROJECT_VERSION})
-# 
-# # The install directory is the output (wheel) directory
-# install(TARGETS _gfnff DESTINATION pygfnff)
-# endif()
+# Shared library for Python ctypes bindings.
+# Enable with -DPYTHON_BINDINGS=ON (scikit-build-core passes this automatically).
+# The static gfnff-lib target is kept for downstream Fortran/CMake consumers.
+if(PYTHON_BINDINGS)
+  add_library(
+    "${PROJECT_NAME}-shared" SHARED
+    "${srcs}"
+  )
+  set_target_properties(
+    "${PROJECT_NAME}-shared"
+    PROPERTIES
+    OUTPUT_NAME "${PROJECT_NAME}"
+    VERSION "${PROJECT_VERSION}"
+    SOVERSION "${PROJECT_VERSION_MAJOR}"
+    WINDOWS_EXPORT_ALL_SYMBOLS TRUE
+    Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/include-shared"
+  )
+  target_link_libraries(
+    "${PROJECT_NAME}-shared"
+    PUBLIC
+    "${lib-deps}"
+  )
+  target_include_directories(
+    "${PROJECT_NAME}-shared"
+    PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include-shared>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  )
+  # Install the shared library so scikit-build-core bundles it into the wheel.
+  install(
+    TARGETS "${PROJECT_NAME}-shared"
+    LIBRARY DESTINATION "gfnff"
+    RUNTIME DESTINATION "gfnff"
+  )
+  # After every build, also copy the shared library into the Python source tree
+  # so that editable installs work without LD_LIBRARY_PATH.
+  add_custom_command(
+    TARGET "${PROJECT_NAME}-shared" POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:${PROJECT_NAME}-shared>
+      "${CMAKE_CURRENT_SOURCE_DIR}/python/gfnff/$<TARGET_FILE_NAME:${PROJECT_NAME}-shared>"
+    COMMENT "Copying libgfnff to python/gfnff/ for development use"
+  )
+endif()
 
 ###############################################################################
 ################################## Testing ####################################

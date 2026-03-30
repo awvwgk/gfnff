@@ -21,7 +21,7 @@
 !> at https://github.com/grimme-lab/xtb
 !================================================================================!
 
-module solvation_solv_util
+module gfnff_solvation_solv_util
 
   implicit none
 
@@ -57,8 +57,8 @@ contains
       if (i .eq. 0) then
         scratch2 = scratch1
       else
-        scratch2 = scratch1(:i - 1)
-        scratch1 = scratch1(i + 1:)
+        scratch2 = scratch1(:i-1)
+        scratch1 = scratch1(i+1:)
       end if
       fpath = scratch2//pathsep//arg
       inquire (file=fpath,exist=exist)
@@ -94,4 +94,4 @@ contains
 
 !========================================================================================!
 
-end module solvation_solv_util
+end module gfnff_solvation_solv_util

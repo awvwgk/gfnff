@@ -1,7 +1,7 @@
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 ! This file is part of gfnff.
 !
-! Copyright (C) 2023 Philipp Pracht
+! Copyright (C) 2023-2026 Philipp Pracht
 !
 ! gfnff is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -15,11 +15,11 @@
 !
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with gfnff. If not, see <https://www.gnu.org/licenses/>.
-!--------------------------------------------------------------------------------!
+! ──────────────────────────────────────────────────────────────────────────────
 !> The original (unmodified) source code can be found under the GNU LGPL 3.0 license
 !> Copyright (C) 2019-2020 Sebastian Ehlert, Sebastian Spicher, Stefan Grimme
 !> at https://github.com/grimme-lab/xtb
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 module gfnff_param
   use iso_fortran_env,only:wp => real64,sp => real64
   use gfnff_data_types,only:TGFFData,init,TGFFGenerator,TGFFTopology
@@ -46,33 +46,33 @@ module gfnff_param
     !> Harmonic potential version of the Angew. Chem. 2020
     integer :: harmonic2020 = -1
 
+    !> MC-GFN-FF with periodic boundary conditions (2023)
+    integer :: mcgfnff2023 = 4
+
   end type TGFFVersionEnum
 
   !> Actual enumerator for force field versions
   type(TGFFVersionEnum), parameter :: gffVersion = TGFFVersionEnum()
 
-
-
-   !> Periodic system of elements
-   character(len=2), parameter :: pse(118) = [ &
-      & 'H ','He', &
-      & 'Li','Be','B ','C ','N ','O ','F ','Ne', &
-      & 'Na','Mg','Al','Si','P ','S ','Cl','Ar', &
-      & 'K ','Ca', &
-      & 'Sc','Ti','V ','Cr','Mn','Fe','Co','Ni','Cu','Zn', &
-      &           'Ga','Ge','As','Se','Br','Kr', &
-      & 'Rb','Sr', &
-      & 'Y ','Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd', &
-      &           'In','Sn','Sb','Te','I ','Xe', &
-      & 'Cs','Ba', &
-      & 'La','Ce','Pr','Nd','Pm','Sm','Eu','Gd','Tb','Dy','Ho','Er','Tm','Yb', &
-      & 'Lu','Hf','Ta','W ','Re','Os','Ir','Pt','Au','Hg', &
-      &           'Tl','Pb','Bi','Po','At','Rn', &
-      & 'Fr','Ra', &
-      & 'Ac','Th','Pa','U ','Np','Pu','Am','Cm','Bk','Cf','Es','Fm','Md','No', &
-      & 'Lr','Rf','Db','Sg','Bh','Hs','Mt','Ds','Rg','Cn', &
-      &           'Nh','Fl','Mc','Lv','Ts','Og' ]
-
+  !> Periodic system of elements
+  character(len=2), parameter :: pse(118) = [ &
+     & 'H ','He', &
+     & 'Li','Be','B ','C ','N ','O ','F ','Ne', &
+     & 'Na','Mg','Al','Si','P ','S ','Cl','Ar', &
+     & 'K ','Ca', &
+     & 'Sc','Ti','V ','Cr','Mn','Fe','Co','Ni','Cu','Zn', &
+     &           'Ga','Ge','As','Se','Br','Kr', &
+     & 'Rb','Sr', &
+     & 'Y ','Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd', &
+     &           'In','Sn','Sb','Te','I ','Xe', &
+     & 'Cs','Ba', &
+     & 'La','Ce','Pr','Nd','Pm','Sm','Eu','Gd','Tb','Dy','Ho','Er','Tm','Yb', &
+     & 'Lu','Hf','Ta','W ','Re','Os','Ir','Pt','Au','Hg', &
+     &           'Tl','Pb','Bi','Po','At','Rn', &
+     & 'Fr','Ra', &
+     & 'Ac','Th','Pa','U ','Np','Pu','Am','Cm','Bk','Cf','Es','Fm','Md','No', &
+     & 'Lr','Rf','Db','Sg','Bh','Hs','Mt','Ds','Rg','Cn', &
+     &           'Nh','Fl','Mc','Lv','Ts','Og' ]
 
   !========================================================================
   ! all fixed parameters/potetnial parameters/thresholds/cut-offs
@@ -84,7 +84,7 @@ module gfnff_param
   logical  :: gff_print = .true. !shows timing of energy + gradient
   logical  :: make_chrg = .true. !generates new eeq chareges based on current geometry
 
-  real(wp), parameter :: chi_angewChem2020(86) = [&
+  real(wp), parameter :: chi_angewChem2020(103) = [&
      & 1.227054_wp, 1.451412_wp, 0.813363_wp, 1.062841_wp, 1.186499_wp, &
      & 1.311555_wp, 1.528485_wp, 1.691201_wp, 1.456784_wp, 1.231037_wp, &
      & 0.772989_wp, 1.199092_wp, 1.221576_wp, 1.245964_wp, 1.248942_wp, &
@@ -96,15 +96,18 @@ module gfnff_param
      & 0.967863_wp, 1.002901_wp, 1.037940_wp, 1.072978_wp, 1.108017_wp, &
      & 1.143055_wp, 1.178094_wp, 1.213132_wp, 1.205076_wp, 1.075529_wp, &
      & 1.206919_wp, 1.303658_wp, 1.332656_wp, 1.179317_wp, 0.789115_wp, &
-     & 0.798704_wp, 1.127797_wp, 1.127863_wp, 1.127928_wp, 1.127994_wp, &
-     & 1.128059_wp, 1.128125_wp, 1.128190_wp, 1.128256_wp, 1.128322_wp, &
-     & 1.128387_wp, 1.128453_wp, 1.128518_wp, 1.128584_wp, 1.128649_wp, &
-     & 1.128715_wp, 1.128780_wp, 1.129764_wp, 1.130747_wp, 1.131731_wp, &
+     & 0.798704_wp, 0.993208_wp, 0.907847_wp, 0.836114_wp, 0.778008_wp, &
+     & 0.733529_wp, 0.702678_wp, 0.685455_wp, 0.681858_wp, 0.691889_wp, &
+     & 0.715548_wp, 0.752834_wp, 0.803747_wp, 0.868288_wp, 0.946457_wp, &
+     & 1.038252_wp, 1.128780_wp, 1.129764_wp, 1.130747_wp, 1.131731_wp, &
      & 1.132714_wp, 1.133698_wp, 1.134681_wp, 1.135665_wp, 1.136648_wp, &
      & 1.061832_wp, 1.053084_wp, 1.207830_wp, 1.236314_wp, 1.310129_wp, &
-     & 1.157380_wp]
+     & 1.157380_wp, 0.789115_wp, 0.798704_wp, 1.053384_wp, 1.056040_wp, &
+     & 1.058772_wp, 1.061580_wp, 1.064463_wp, 1.067422_wp, 1.070456_wp, &
+     & 1.073566_wp, 1.076751_wp, 1.080012_wp, 1.083349_wp, 1.086761_wp, &
+     & 1.090249_wp, 1.093812_wp, 1.097451_wp]
 
-  real(wp), parameter :: gam_angewChem2020(86) = [&
+  real(wp), parameter :: gam_angewChem2020(103) = [&
      &-0.448428_wp, 0.131022_wp, 0.571431_wp, 0.334622_wp,-0.089208_wp, &
      &-0.025895_wp,-0.027280_wp,-0.031236_wp,-0.159892_wp, 0.074198_wp, &
      & 0.316829_wp, 0.326072_wp, 0.069748_wp,-0.120184_wp,-0.193159_wp, &
@@ -116,15 +119,18 @@ module gfnff_param
      &-0.010869_wp,-0.000951_wp, 0.008967_wp, 0.018884_wp, 0.028802_wp, &
      & 0.038720_wp, 0.048638_wp, 0.058556_wp, 0.036488_wp, 0.077711_wp, &
      & 0.077025_wp, 0.004547_wp, 0.039909_wp, 0.082630_wp, 0.485375_wp, &
-     & 0.416264_wp,-0.011212_wp,-0.011046_wp,-0.010879_wp,-0.010713_wp, &
-     &-0.010546_wp,-0.010380_wp,-0.010214_wp,-0.010047_wp,-0.009881_wp, &
-     &-0.009714_wp,-0.009548_wp,-0.009382_wp,-0.009215_wp,-0.009049_wp, &
-     &-0.008883_wp,-0.008716_wp,-0.006220_wp,-0.003724_wp,-0.001228_wp, &
+     & 0.416264_wp,-0.007277_wp,-0.007862_wp,-0.008388_wp,-0.008855_wp, &
+     &-0.009263_wp,-0.009611_wp,-0.009901_wp,-0.010132_wp,-0.010304_wp, &
+     &-0.010417_wp,-0.010471_wp,-0.010465_wp,-0.010401_wp,-0.010278_wp, &
+     &-0.010096_wp,-0.008716_wp,-0.006220_wp,-0.003724_wp,-0.001228_wp, &
      & 0.001267_wp, 0.003763_wp, 0.006259_wp, 0.008755_wp, 0.011251_wp, &
      & 0.020477_wp,-0.056566_wp, 0.051943_wp, 0.076708_wp, 0.000273_wp, &
-     &-0.068929_wp]
+     &-0.068929_wp, 0.485375_wp, 0.416264_wp,-0.009993_wp,-0.010075_wp, &
+     &-0.010138_wp,-0.010179_wp,-0.010201_wp,-0.010201_wp,-0.010182_wp, &
+     &-0.010141_wp,-0.010080_wp,-0.009999_wp,-0.009897_wp,-0.009775_wp, &
+     &-0.009632_wp,-0.009468_wp,-0.009284_wp]
 
-  real(wp), parameter :: cnf_angewChem2020(86) = [&
+  real(wp), parameter :: cnf_angewChem2020(103) = [&
      & 0.008904_wp, 0.004641_wp, 0.048324_wp, 0.080316_wp,-0.051990_wp, &
      & 0.031779_wp, 0.132184_wp, 0.157353_wp, 0.064120_wp, 0.036540_wp, &
      &-0.000627_wp, 0.005412_wp, 0.018809_wp, 0.016329_wp, 0.012149_wp, &
@@ -136,15 +142,18 @@ module gfnff_param
      & 0.004992_wp, 0.009186_wp, 0.013379_wp, 0.017573_wp, 0.021766_wp, &
      & 0.025960_wp, 0.030153_wp, 0.034347_wp,-0.000052_wp,-0.039776_wp, &
      & 0.006661_wp, 0.050424_wp, 0.068985_wp, 0.023470_wp,-0.024950_wp, &
-     &-0.033006_wp, 0.058973_wp, 0.058595_wp, 0.058217_wp, 0.057838_wp, &
-     & 0.057460_wp, 0.057082_wp, 0.056704_wp, 0.056326_wp, 0.055948_wp, &
-     & 0.055569_wp, 0.055191_wp, 0.054813_wp, 0.054435_wp, 0.054057_wp, &
-     & 0.053679_wp, 0.053300_wp, 0.047628_wp, 0.041955_wp, 0.036282_wp, &
+     &-0.033006_wp, 0.062573_wp, 0.057117_wp, 0.052085_wp, 0.047480_wp, &
+     & 0.043299_wp, 0.039544_wp, 0.036215_wp, 0.033311_wp, 0.030833_wp, &
+     & 0.028780_wp, 0.027153_wp, 0.025951_wp, 0.025174_wp, 0.024823_wp, &
+     & 0.024898_wp, 0.053300_wp, 0.047628_wp, 0.041955_wp, 0.036282_wp, &
      & 0.030610_wp, 0.024937_wp, 0.019264_wp, 0.013592_wp, 0.007919_wp, &
      & 0.006383_wp,-0.089155_wp,-0.001293_wp, 0.019269_wp, 0.074803_wp, &
-     & 0.016657_wp]
+     & 0.016657_wp,-0.024950_wp,-0.033006_wp, 0.065498_wp, 0.058290_wp, &
+     & 0.052304_wp, 0.047540_wp, 0.043999_wp, 0.041680_wp, 0.040584_wp, &
+     & 0.040710_wp, 0.042058_wp, 0.044628_wp, 0.048421_wp, 0.053436_wp, &
+     & 0.059674_wp, 0.067134_wp, 0.075816_wp]
 
-  real(wp), parameter :: alp_angewChem2020(86) = [&
+  real(wp), parameter :: alp_angewChem2020(103) = [&
      & 0.585069_wp, 0.432382_wp, 0.628636_wp, 0.743646_wp, 1.167323_wp, &
      & 0.903430_wp, 1.278388_wp, 0.905347_wp, 1.067014_wp, 2.941513_wp, &
      & 0.687680_wp, 0.792170_wp, 1.337040_wp, 1.251409_wp, 1.068295_wp, &
@@ -156,15 +165,18 @@ module gfnff_param
      & 0.684938_wp, 0.701032_wp, 0.717125_wp, 0.733218_wp, 0.749311_wp, &
      & 0.765405_wp, 0.781498_wp, 0.797591_wp, 1.296844_wp, 1.534068_wp, &
      & 1.727781_wp, 1.926871_wp, 2.175548_wp, 2.177702_wp, 0.977079_wp, &
-     & 0.770260_wp, 0.757372_wp, 0.757352_wp, 0.757332_wp, 0.757313_wp, &
-     & 0.757293_wp, 0.757273_wp, 0.757253_wp, 0.757233_wp, 0.757213_wp, &
-     & 0.757194_wp, 0.757174_wp, 0.757154_wp, 0.757134_wp, 0.757114_wp, &
-     & 0.757095_wp, 0.757075_wp, 0.756778_wp, 0.756480_wp, 0.756183_wp, &
+     & 0.770260_wp, 0.695335_wp, 0.653051_wp, 0.617284_wp, 0.588034_wp, &
+     & 0.565301_wp, 0.549084_wp, 0.539383_wp, 0.536199_wp, 0.539532_wp, &
+     & 0.549382_wp, 0.565747_wp, 0.588630_wp, 0.618029_wp, 0.653945_wp, &
+     & 0.696377_wp, 0.757075_wp, 0.756778_wp, 0.756480_wp, 0.756183_wp, &
      & 0.755886_wp, 0.755589_wp, 0.755291_wp, 0.754994_wp, 0.754697_wp, &
      & 0.868029_wp, 1.684375_wp, 2.001040_wp, 2.067331_wp, 2.228923_wp, &
-     & 1.874218_wp]
+     & 1.874218_wp, 0.977079_wp, 0.770260_wp, 0.717658_wp, 0.732120_wp, &
+     & 0.743405_wp, 0.751515_wp, 0.756447_wp, 0.758203_wp, 0.756783_wp, &
+     & 0.752186_wp, 0.744413_wp, 0.733463_wp, 0.719337_wp, 0.702034_wp, &
+     & 0.681554_wp, 0.657898_wp, 0.631066_wp]
 
-  real(wp), parameter :: bond_angewChem2020(86) = [&
+  real(wp), parameter :: bond_angewChem2020(103) = [&
      & 0.417997_wp, 0.258490_wp, 0.113608_wp, 0.195935_wp, 0.231217_wp, &
      & 0.385248_wp, 0.379257_wp, 0.339249_wp, 0.330706_wp, 0.120319_wp, &
      & 0.127255_wp, 0.173647_wp, 0.183796_wp, 0.273055_wp, 0.249044_wp, &
@@ -182,9 +194,12 @@ module gfnff_param
      & 0.340282_wp, 0.338111_wp, 0.305540_wp, 0.272969_wp, 0.240398_wp, &
      & 0.207828_wp, 0.175257_wp, 0.142686_wp, 0.110115_wp, 0.077544_wp, &
      & 0.108597_wp, 0.148422_wp, 0.183731_wp, 0.192274_wp, 0.127706_wp, &
-     & 0.086756_wp]
+     & 0.086756_wp, 0.150000_wp, 0.150000_wp, 0.370682_wp, 0.368511_wp, &
+     & 0.366339_wp, 0.364168_wp, 0.361996_wp, 0.359825_wp, 0.357654_wp, &
+     & 0.355482_wp, 0.353311_wp, 0.351139_wp, 0.348968_wp, 0.346797_wp, &
+     & 0.344625_wp, 0.342454_wp, 0.340282_wp]
 
-  real(wp), parameter :: repa_angewChem2020(86) = [&
+  real(wp), parameter :: repa_angewChem2020(103) = [&
      & 2.639785_wp, 3.575012_wp, 0.732142_wp, 1.159621_wp, 1.561585_wp, &
      & 1.762895_wp, 2.173015_wp, 2.262269_wp, 2.511112_wp, 3.577220_wp, &
      & 0.338845_wp, 0.693023_wp, 0.678792_wp, 0.804784_wp, 1.012178_wp, &
@@ -202,9 +217,12 @@ module gfnff_param
      & 0.712136_wp, 0.714237_wp, 0.745751_wp, 0.777265_wp, 0.808779_wp, &
      & 0.840294_wp, 0.871808_wp, 0.903322_wp, 0.934836_wp, 0.966350_wp, &
      & 0.467729_wp, 0.486102_wp, 0.559176_wp, 0.557520_wp, 0.563373_wp, &
-     & 0.484713_wp]
+     & 0.484713_wp, 0.574626_wp, 0.560506_wp, 0.682723_wp, 0.684824_wp, &
+     & 0.686925_wp, 0.689026_wp, 0.691127_wp, 0.693228_wp, 0.695329_wp, &
+     & 0.697430_wp, 0.699531_wp, 0.701631_wp, 0.703732_wp, 0.705833_wp, &
+     & 0.707934_wp, 0.710035_wp, 0.712136_wp]
 
-  real(wp), parameter :: repan_angewChem2020(86) = [&
+  real(wp), parameter :: repan_angewChem2020(103) = [&
      & 1.071395_wp, 1.072699_wp, 1.416847_wp, 1.156187_wp, 0.682382_wp, &
      & 0.556380_wp, 0.746785_wp, 0.847242_wp, 0.997252_wp, 0.873051_wp, &
      & 0.322503_wp, 0.415554_wp, 0.423946_wp, 0.415776_wp, 0.486773_wp, &
@@ -222,9 +240,12 @@ module gfnff_param
      & 0.232115_wp, 0.235291_wp, 0.282937_wp, 0.330583_wp, 0.378229_wp, &
      & 0.425876_wp, 0.473522_wp, 0.521168_wp, 0.568814_wp, 0.616460_wp, &
      & 0.242521_wp, 0.293680_wp, 0.320931_wp, 0.322666_wp, 0.333641_wp, &
-     & 0.434163_wp]
+     & 0.434163_wp, 0.302575_wp, 0.163290_wp, 0.187645_wp, 0.190821_wp, &
+     & 0.193998_wp, 0.197174_wp, 0.200351_wp, 0.203527_wp, 0.206703_wp, &
+     & 0.209880_wp, 0.213056_wp, 0.216233_wp, 0.219409_wp, 0.222585_wp, &
+     & 0.225762_wp, 0.228938_wp, 0.232115_wp]
 
-  real(wp), parameter :: angl_angewChem2020(86) = [&
+  real(wp), parameter :: angl_angewChem2020(103) = [&
      & 1.661808_wp, 0.300000_wp, 0.018158_wp, 0.029224_wp, 0.572683_wp, &
      & 0.771055_wp, 1.053577_wp, 2.159889_wp, 1.525582_wp, 0.400000_wp, &
      & 0.041070_wp, 0.028889_wp, 0.086910_wp, 0.494456_wp, 0.409204_wp, &
@@ -242,9 +263,12 @@ module gfnff_param
      & 0.268528_wp, 0.267605_wp, 0.253760_wp, 0.239916_wp, 0.226071_wp, &
      & 0.212227_wp, 0.198382_wp, 0.184538_wp, 0.170693_wp, 0.156849_wp, &
      & 0.104547_wp, 0.313474_wp, 0.220185_wp, 0.415042_wp, 1.259822_wp, &
-     & 0.400000_wp]
+     & 0.400000_wp, 0.032198_wp, 0.036663_wp, 0.281449_wp, 0.280526_wp, &
+     & 0.279603_wp, 0.278680_wp, 0.277757_wp, 0.276834_wp, 0.275911_wp, &
+     & 0.274988_wp, 0.274065_wp, 0.273142_wp, 0.272219_wp, 0.271296_wp, &
+     & 0.270373_wp, 0.269450_wp, 0.268528_wp]
 
-  real(wp), parameter :: angl2_angewChem2020(86) = [&
+  real(wp), parameter :: angl2_angewChem2020(103) = [&
      & 0.624197_wp, 0.600000_wp, 0.050000_wp, 0.101579_wp, 0.180347_wp, &
      & 0.755851_wp, 0.761551_wp, 0.813653_wp, 0.791274_wp, 0.400000_wp, &
      & 0.000000_wp, 0.022706_wp, 0.100000_wp, 0.338514_wp, 0.453023_wp, &
@@ -262,9 +286,12 @@ module gfnff_param
      & 0.086496_wp, 0.087053_wp, 0.095395_wp, 0.103738_wp, 0.112081_wp, &
      & 0.120423_wp, 0.128766_wp, 0.137109_wp, 0.145451_wp, 0.153794_wp, &
      & 0.323570_wp, 0.233450_wp, 0.268137_wp, 0.307481_wp, 0.316447_wp, &
-     & 0.400000_wp]
+     & 0.400000_wp, 0.000000_wp, 0.000000_wp, 0.078710_wp, 0.079266_wp, &
+     & 0.079822_wp, 0.080379_wp, 0.080935_wp, 0.081491_wp, 0.082047_wp, &
+     & 0.082603_wp, 0.083159_wp, 0.083716_wp, 0.084272_wp, 0.084828_wp, &
+     & 0.085384_wp, 0.085940_wp, 0.086496_wp]
 
-  real(wp), parameter :: tors_angewChem2020(86) = [&
+  real(wp), parameter :: tors_angewChem2020(103) = [&
      & 0.100000_wp, 0.100000_wp, 0.100000_wp, 0.000000_wp, 0.121170_wp, &
      & 0.260028_wp, 0.222546_wp, 0.250620_wp, 0.256328_wp, 0.400000_wp, &
      & 0.115000_wp, 0.000000_wp, 0.103731_wp, 0.069103_wp, 0.104280_wp, &
@@ -282,9 +309,12 @@ module gfnff_param
      & 0.286192_wp, 0.284427_wp, 0.257959_wp, 0.231490_wp, 0.205022_wp, &
      & 0.178553_wp, 0.152085_wp, 0.125616_wp, 0.099147_wp, 0.072679_wp, &
      & 0.203077_wp, 0.169346_wp, 0.090568_wp, 0.144762_wp, 0.231884_wp, &
-     & 0.400000_wp]
+     & 0.400000_wp, 0.090741_wp, 0.076783_wp, 0.310896_wp, 0.309131_wp, &
+     & 0.307367_wp, 0.305602_wp, 0.303838_wp, 0.302073_wp, 0.300309_wp, &
+     & 0.298544_wp, 0.296779_wp, 0.295015_wp, 0.293250_wp, 0.291486_wp, &
+     & 0.289721_wp, 0.287957_wp, 0.286192_wp]
 
-  real(wp), parameter :: tors2_angewChem2020(86) = [&
+  real(wp), parameter :: tors2_angewChem2020(103) = [&
      & 1.618678_wp, 1.000000_wp, 0.064677_wp, 0.000000_wp, 0.965814_wp, &
      & 1.324709_wp, 1.079334_wp, 1.478599_wp, 0.304844_wp, 0.500000_wp, &
      & 0.029210_wp, 0.000000_wp, 0.417423_wp, 0.334275_wp, 0.817008_wp, &
@@ -302,7 +332,10 @@ module gfnff_param
      & 0.246091_wp, 0.254931_wp, 0.387526_wp, 0.520121_wp, 0.652716_wp, &
      & 0.785311_wp, 0.917906_wp, 1.050500_wp, 1.183095_wp, 1.315690_wp, &
      & 0.219729_wp, 0.344830_wp, 0.331862_wp, 0.767979_wp, 0.536799_wp, &
-     & 0.500000_wp]
+     & 0.500000_wp, 0.000000_wp, 0.000000_wp, 0.122336_wp, 0.131176_wp, &
+     & 0.140015_wp, 0.148855_wp, 0.157695_wp, 0.166534_wp, 0.175374_wp, &
+     & 0.184214_wp, 0.193053_wp, 0.201893_wp, 0.210733_wp, 0.219572_wp, &
+     & 0.228412_wp, 0.237252_wp, 0.246091_wp]
 
 !----------------------------------------------------------------------------------------
   real(wp) :: efield(3)              ! electric field components
@@ -312,7 +345,7 @@ module gfnff_param
   !------------------------------------------------------------------------
 
   !> Pauling EN
-  real(wp), parameter :: en(1:86) = [&
+  real(wp), parameter :: en(1:103) = [&
  &         2.200,3.000,0.980,1.570,2.040,2.550,3.040,3.440,3.980 &
  &        ,4.500,0.930,1.310,1.610,1.900,2.190,2.580,3.160,3.500 &
  &        ,0.820,1.000,1.360,1.540,1.630,1.660,1.550,1.830,1.880 &
@@ -321,14 +354,43 @@ module gfnff_param
  &        ,2.200,1.930,1.690,1.780,1.960,2.050,2.100,2.660,2.600 &
  &,0.79,0.89,1.10,1.12,1.13,1.14,1.15,1.17,1.18,1.20,1.21,1.22 &
  &,1.23,1.24,1.25,1.26,1.27,1.3,1.5,1.7,1.9,2.1,2.2,2.2,2.2 &   ! value of W-Au modified
- &,2.00,1.62,2.33,2.02,2.0,2.2,2.2]
+ &,2.00,1.62,2.33,2.02,2.0,2.2,2.2 &
+ &,0.79,0.89,1.10,1.30,1.50,1.38,1.36,1.28,1.13,1.28,1.30,1.30,1.30,1.30,1.30,1.30,1.30]
+
+   !> Pauling electronegativities, used for the covalent coordination number.
+   real(wp),public,parameter :: paulingEN(1:118) = [ &
+  & 2.20_wp,3.00_wp, & ! H,He
+  & 0.98_wp,1.57_wp,2.04_wp,2.55_wp,3.04_wp,3.44_wp,3.98_wp,4.50_wp, & ! Li-Ne
+  & 0.93_wp,1.31_wp,1.61_wp,1.90_wp,2.19_wp,2.58_wp,3.16_wp,3.50_wp, & ! Na-Ar
+  & 0.82_wp,1.00_wp, & ! K,Ca
+  &                 1.36_wp,1.54_wp,1.63_wp,1.66_wp,1.55_wp, & ! Sc-
+  &                 1.83_wp,1.88_wp,1.91_wp,1.90_wp,1.65_wp, & ! -Zn
+  &                 1.81_wp,2.01_wp,2.18_wp,2.55_wp,2.96_wp,3.00_wp, & ! Ga-Kr
+  & 0.82_wp,0.95_wp, & ! Rb,Sr
+  &                 1.22_wp,1.33_wp,1.60_wp,2.16_wp,1.90_wp, & ! Y-
+  &                 2.20_wp,2.28_wp,2.20_wp,1.93_wp,1.69_wp, & ! -Cd
+  &                 1.78_wp,1.96_wp,2.05_wp,2.10_wp,2.66_wp,2.60_wp, & ! In-Xe
+  & 0.79_wp,0.89_wp, & ! Cs,Ba
+  &         1.10_wp,1.12_wp,1.13_wp,1.14_wp,1.15_wp,1.17_wp,1.18_wp, & ! La-Eu
+  &         1.20_wp,1.21_wp,1.22_wp,1.23_wp,1.24_wp,1.25_wp,1.26_wp, & ! Gd-Yb
+  &                 1.27_wp,1.30_wp,1.50_wp,2.36_wp,1.90_wp, & ! Lu-
+  &                 2.20_wp,2.20_wp,2.28_wp,2.54_wp,2.00_wp, & ! -Hg
+  &                 1.62_wp,2.33_wp,2.02_wp,2.00_wp,2.20_wp,2.20_wp, & ! Tl-Rn
+  ! only dummies below
+  & 1.50_wp,1.50_wp, & ! Fr,Ra
+  &         1.50_wp,1.50_wp,1.50_wp,1.50_wp,1.50_wp,1.50_wp,1.50_wp, & ! Ac-Am
+  &         1.50_wp,1.50_wp,1.50_wp,1.50_wp,1.50_wp,1.50_wp,1.50_wp, & ! Cm-No
+  &                 1.50_wp,1.50_wp,1.50_wp,1.50_wp,1.50_wp, & ! Rf-
+  &                 1.50_wp,1.50_wp,1.50_wp,1.50_wp,1.50_wp, & ! Rf-Cn
+  &                 1.50_wp,1.50_wp,1.50_wp,1.50_wp,1.50_wp,1.50_wp ] ! Nh-Og
+
 
   ! COVALENT RADII, used only in neighbor list determination
   ! based on "Atomic Radii of the Elements," M. Mantina, R. Valero, C. J. Cramer, and D. G. Truhlar,
   ! in CRC Handbook of Chemistry and Physics, 91st Edition (2010-2011),
   ! edited by W. M. Haynes (CRC Press, Boca Raton, FL, 2010), pages 9-49-9-50;
   ! corrected Nov. 17, 2010 for the 92nd edition.
-  real(wp), parameter :: rad(1:86) = [&
+  real(wp), parameter :: rad(1:103) = [&
  & 0.32_wp,0.37_wp,1.30_wp,0.99_wp,0.84_wp,0.75_wp,0.71_wp,0.64_wp,0.60_wp,&
  & 0.62_wp,1.60_wp,1.40_wp,1.24_wp,1.14_wp,1.09_wp,1.04_wp,1.00_wp,1.01_wp,&
  & 2.00_wp,1.74_wp,1.59_wp,1.48_wp,1.44_wp,1.30_wp,1.29_wp,1.24_wp,1.18_wp,&
@@ -338,7 +400,9 @@ module gfnff_param
  & 2.38_wp,2.06_wp,1.94_wp,1.84_wp,1.90_wp,1.88_wp,1.86_wp,1.85_wp,1.83_wp,&
  & 1.82_wp,1.81_wp,1.80_wp,1.79_wp,1.77_wp,1.77_wp,1.78_wp,1.74_wp,1.64_wp,&
  & 1.58_wp,1.50_wp,1.41_wp,1.36_wp,1.32_wp,1.30_wp,1.30_wp,1.32_wp,1.44_wp,&
- & 1.45_wp,1.50_wp,1.42_wp,1.48_wp,1.46_wp]
+ & 1.45_wp,1.50_wp,1.42_wp,1.48_wp,1.46_wp,&
+ & 2.42D0,2.11D0,2.01D0,1.90D0,1.84D0,1.83D0,1.80D0,1.80D0,1.73D0,1.68D0,&
+ & 1.68D0,1.68D0,1.65D0,1.67D0,1.73D0,1.76D0,1.61D0]
 
   !  PBE0/def2-QZVP atomic values calculated by S. Grimme in Gaussian (2010)
   !  rare gases recalculated by J. Mewes with PBE0/aug-cc-pVQZ in Dirac (2018)
@@ -405,40 +469,47 @@ module gfnff_param
  & * aatoau * 4.0_wp / 3.0_wp
 
   !> mapping of metal character
-  integer, parameter :: metal(86) = (/ &
+  integer, parameter :: metal(103) = (/ &
  & 0,                                                                0,&!He
  & 1,1,                                               0, 0, 0, 0, 0, 0,&!Ne
  & 1,1,                                               1, 0, 0, 0, 0, 0,&!Ar
  & 1,1,2,                2, 2, 2, 2, 2, 2, 2, 2, 2,   1, 0, 0, 0, 0, 0,&!Kr
  & 1,2,2,                2, 2, 2, 2, 2, 2, 2, 2, 2,   1, 1, 0, 0, 0, 0,&!Xe
  & 1,2,2, 2,2,2,2,2,2,2,2,2,2,2,2,2,2, &
- &                       2, 2, 2, 2, 2, 2, 2, 2, 2,   1, 1, 1, 1, 0, 0/)!Rn
+ &                       2, 2, 2, 2, 2, 2, 2, 2, 2,   1, 1, 1, 1, 0, 0,&!Rn
+ & 1,2,2, 2,2,2,2,2,2,2,2,2,2,2,2,2,2 & !Fr-Lr
+ & /)
   ! At is NOT a metal, Po is borderline but slightly better as metal
-  integer, private, parameter :: group(86) = (/ &
+  integer, private, parameter :: group(103) = (/ &
  & 1,                                                                   8,&!He
  & 1,2,                                                  3, 4, 5, 6, 7, 8,&!Ne
  & 1,2,                                                  3, 4, 5, 6, 7, 8,&!Ar
  & 1,2,-3,                 -4,-5,-6,-7,-8,-9,-10,-11,-12,3, 4, 5, 6, 7, 8,&!Kr
  & 1,2,-3,                 -4,-5,-6,-7,-8,-9,-10,-11,-12,3, 4, 5, 6, 7, 8,&!Xe
  & 1,2,-3,  -3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3,-3, &
- &                         -4,-5,-6,-7,-8,-9,-10,-11,-12,3, 4, 5, 6, 7, 8/)!Rn
-  integer, parameter :: normcn(86) = (/ &  ! only for non metals well defined
+ &                         -4,-5,-6,-7,-8,-9,-10,-11,-12,3, 4, 5, 6, 7, 8,&!Rn
+ & 1,2,-13, -13,-13,-13,-13,-13,-13,-13,-13,-13,-13,-13,-13,-13,-13 & !Fr-Lr
+ & /)
+  integer, parameter :: normcn(103) = (/ &  ! only for non metals well defined
  & 1,                                                                0,&!He
  & 4,4,                                               4, 4, 4, 2, 1, 0,&!Ne
  & 4,4,                                               4, 4, 4, 2, 1, 0,&!Ar
  & 4,4,4,                4, 6, 6, 6, 6, 6, 6, 4, 4,   4, 4, 4, 4, 1, 0,&!Kr
  & 4,4,4,                4, 6, 6, 6, 6, 6, 6, 4, 4,   4, 4, 4, 4, 1, 0,&!Xe
  & 4,4,4, 4,4,4,4,4,4,4,4,4,4,4,4,4,4, &
- &                       4, 6, 6, 6, 6, 6, 6, 6, 4,   4, 4, 4, 4, 1, 0/) !Rn
-  real(wp), parameter :: repz(86) =   (/ &
+ &                       4, 6, 6, 6, 6, 6, 6, 6, 4,   4, 4, 4, 4, 1, 0,&!Rn
+ & 4,4,4, 4,4,4,4,4,4,4,4,4,4,4,4,4,4 & !Fr-Lr
+ & /)
+  real(wp), parameter :: repz(103) =   (/ &
  & 1.,                                                                    2.,&!He
  & 1.,2.,                                                  3.,4.,5.,6.,7.,8.,&!Ne
  & 1.,2.,                                                  3.,4.,5.,6.,7.,8.,&!Ar
  & 1.,2.,3.,                 4.,5.,6.,7.,8.,9.,10.,11.,12.,3.,4.,5.,6.,7.,8.,&!Kr
  & 1.,2.,3.,                 4.,5.,6.,7.,8.,9.,10.,11.,12.,3.,4.,5.,6.,7.,8.,&!Xe
  & 1.,2.,3.,  3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3., &
- &                           4.,5.,6.,7.,8.,9.,10.,11.,12.,3.,4.,5.,6.,7.,8./) !Rn
-
+ &                           4.,5.,6.,7.,8.,9.,10.,11.,12.,3.,4.,5.,6.,7.,8.,& !Rn
+ & 1.,2.,3.,  3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3.,3. & !Fr-Lr
+ & /)
 !&>
 
 !========================================================================================!
@@ -456,6 +527,8 @@ contains  !> MODULE PROCEDURES BEGIN HERE
     !> LOCAL
     integer   :: i,j,k
     real(wp)  :: dum
+
+    if (.false.) write (*,*) n  ! silences -Wunused-dummy-argument
 
     call newGFNFFGenerator(gen)
 
@@ -562,18 +635,19 @@ contains  !> MODULE PROCEDURES BEGIN HERE
 
     exist = .false.
 
-    call init(param,86)
+    call init(param,103)
 
     param%en(:) = en
     param%rad(:) = rad
-    param%rcov(:) = covalentRadD3(1:86)
+    param%rcov(:) = covalentRadD3(1:103)
     param%metal(:) = metal
     param%group(:) = group
     param%normcn(:) = normcn
     param%repz(:) = repz
 
     select case (version)
-    case (gffVersion%angewChem2020,gffVersion%angewChem2020_1,gffVersion%angewChem2020_2,gffVersion%harmonic2020)
+    case (gffVersion%angewChem2020,gffVersion%angewChem2020_1, &
+    &     gffVersion%angewChem2020_2,gffVersion%harmonic2020,gffVersion%mcgfnff2023 )
       call loadGFNFFAngewChem2020(param)
       exist = .true.
     end select
@@ -596,7 +670,7 @@ contains  !> MODULE PROCEDURES BEGIN HERE
   end subroutine loadGFNFFAngewChem2020
 
   subroutine gfnff_read_param(iunit,param)
-    use gfnff_helpers, only: readl 
+    use gfnff_helpers,only:readl
     implicit none
     !> IN/OUTPUT
     integer,intent(in)  :: iunit
@@ -606,11 +680,11 @@ contains  !> MODULE PROCEDURES BEGIN HERE
     real(wp) :: xx(20)
     character(len=256) :: atmp
 
-    call init(param,86)
+    call init(param,103)
 
     param%en(:) = en
     param%rad(:) = rad
-    param%rcov(:) = covalentRadD3(1:86)
+    param%rcov(:) = covalentRadD3(1:103)
     param%metal(:) = metal
     param%group(:) = group
     param%normcn(:) = normcn
@@ -635,39 +709,40 @@ contains  !> MODULE PROCEDURES BEGIN HERE
   end subroutine gfnff_read_param
 
   subroutine gfnff_param_alloc(topo,n)
+    !> This is only used for restarts... TODO
     implicit none
     !> IN/OUTPUT
     type(TGFFTopology),intent(inout) :: topo
     integer,intent(in) :: n
 
-    if (.not.allocated(topo%nb)) allocate (topo%nb(20,n),source=0)
-    if (.not.allocated(topo%bpair)) allocate (topo%bpair(n*(n+1)/2),source=0)
-    if (.not.allocated(topo%alphanb)) allocate (topo%alphanb(n*(n+1)/2),source=0.0_wp)
-    if (.not.allocated(topo%chieeq)) allocate (topo%chieeq(n),source=0.0_wp)
-    if (.not.allocated(topo%gameeq)) allocate (topo%gameeq(n),source=0.0_wp)
-    if (.not.allocated(topo%alpeeq)) allocate (topo%alpeeq(n),source=0.0_wp)
-    if (.not.allocated(topo%qa)) allocate (topo%qa(n),source=0.0_wp)
-    if (.not.allocated(topo%zetac6)) allocate (topo%zetac6(n*(n+1)/2),source=0.0_wp)
-    if (.not.allocated(topo%xyze0)) allocate (topo%xyze0(3,n),source=0.0_wp)
-    if (.not.allocated(topo%b3list)) allocate (topo%b3list(3,1000*n),source=0)
-    if (.not.allocated(topo%fraglist)) allocate (topo%fraglist(n),source=0)
-    if (.not.allocated(topo%qfrag)) allocate (topo%qfrag(n),source=0.0_wp)
-    if (.not.allocated(topo%hbatHl)) allocate (topo%hbatHl(n),source=0)
-    if (.not.allocated(topo%hbbas)) allocate (topo%hbbas(n),source=0.0_wp)
-    if (.not.allocated(topo%hbaci)) allocate (topo%hbaci(n),source=0.0_wp)
-    if (.not.allocated(topo%hbatABl)) allocate (topo%hbatABl(2,n*(n+1)/2),source=0)
-    if (.not.allocated(topo%xbatABl)) allocate (topo%xbatABl(3,topo%natxbAB),source=0)
+   ! if (.not.allocated(topo%nb)) allocate (topo%nb(20,n),source=0)
+   ! if (.not.allocated(topo%bpair)) allocate (topo%bpair(n*(n+1)/2),source=0)
+   ! if (.not.allocated(topo%alphanb)) allocate (topo%alphanb(n*(n+1)/2),source=0.0_wp)
+   ! if (.not.allocated(topo%chieeq)) allocate (topo%chieeq(n),source=0.0_wp)
+   ! if (.not.allocated(topo%gameeq)) allocate (topo%gameeq(n),source=0.0_wp)
+   ! if (.not.allocated(topo%alpeeq)) allocate (topo%alpeeq(n),source=0.0_wp)
+   ! if (.not.allocated(topo%qa)) allocate (topo%qa(n),source=0.0_wp)
+   ! if (.not.allocated(topo%zetac6)) allocate (topo%zetac6(n*(n+1)/2),source=0.0_wp)
+   ! if (.not.allocated(topo%xyze0)) allocate (topo%xyze0(3,n),source=0.0_wp)
+   ! if (.not.allocated(topo%b3list)) allocate (topo%b3list(3,1000*n),source=0)
+   ! if (.not.allocated(topo%fraglist)) allocate (topo%fraglist(n),source=0)
+   ! if (.not.allocated(topo%qfrag)) allocate (topo%qfrag(n),source=0.0_wp)
+   ! if (.not.allocated(topo%hbatHl)) allocate (topo%hbatHl(n),source=0)
+   ! if (.not.allocated(topo%hbbas)) allocate (topo%hbbas(n),source=0.0_wp)
+   ! if (.not.allocated(topo%hbaci)) allocate (topo%hbaci(n),source=0.0_wp)
+   ! if (.not.allocated(topo%hbatABl)) allocate (topo%hbatABl(2,n*(n+1)/2),source=0)
+   ! if (.not.allocated(topo%xbatABl)) allocate (topo%xbatABl(3,topo%natxbAB),source=0)
 
-    if (.not.allocated(topo%blist)) allocate (topo%blist(2,topo%nbond_blist),source=0)
-    if (.not.allocated(topo%nr_hb)) allocate (topo%nr_hb(topo%nbond_blist),source=0)
-    if (.not.allocated(topo%bond_hb_AH)) allocate (topo%bond_hb_AH(2,topo%bond_hb_nr),source=0)
-    if (.not.allocated(topo%bond_hb_B)) allocate (topo%bond_hb_B(topo%b_max,topo%bond_hb_nr),source=0)
-    if (.not.allocated(topo%bond_hb_Bn)) allocate (topo%bond_hb_Bn(topo%bond_hb_nr),source=0)
-    if (.not.allocated(topo%alist)) allocate (topo%alist(3,topo%nangl_alloc),source=0)
-    if (.not.allocated(topo%tlist)) allocate (topo%tlist(5,topo%ntors_alloc),source=0)
-    if (.not.allocated(topo%vbond)) allocate (topo%vbond(3,topo%nbond_vbond),source=0.0_wp)
-    if (.not.allocated(topo%vangl)) allocate (topo%vangl(2,topo%nangl_alloc),source=0.0_wp)
-    if (.not.allocated(topo%vtors)) allocate (topo%vtors(2,topo%ntors_alloc),source=0.0_wp)
+   ! if (.not.allocated(topo%blist)) allocate (topo%blist(2,topo%nbond_blist),source=0)
+   ! if (.not.allocated(topo%nr_hb)) allocate (topo%nr_hb(topo%nbond_blist),source=0)
+   ! if (.not.allocated(topo%bond_hb_AH)) allocate (topo%bond_hb_AH(2,topo%bond_hb_nr),source=0)
+   ! if (.not.allocated(topo%bond_hb_B)) allocate (topo%bond_hb_B(topo%b_max,topo%bond_hb_nr),source=0)
+   ! if (.not.allocated(topo%bond_hb_Bn)) allocate (topo%bond_hb_Bn(topo%bond_hb_nr),source=0)
+   ! if (.not.allocated(topo%alist)) allocate (topo%alist(3,topo%nangl_alloc),source=0)
+   ! if (.not.allocated(topo%tlist)) allocate (topo%tlist(5,topo%ntors_alloc),source=0)
+   ! if (.not.allocated(topo%vbond)) allocate (topo%vbond(3,topo%nbond_vbond),source=0.0_wp)
+   ! if (.not.allocated(topo%vangl)) allocate (topo%vangl(2,topo%nangl_alloc),source=0.0_wp)
+   ! if (.not.allocated(topo%vtors)) allocate (topo%vtors(2,topo%ntors_alloc),source=0.0_wp)
 
   end subroutine gfnff_param_alloc
 
@@ -675,34 +750,34 @@ contains  !> MODULE PROCEDURES BEGIN HERE
     implicit none
     type(TGFFTopology),intent(inout) :: topo
 
-    if (allocated(topo%nb)) deallocate (topo%nb)
-    if (allocated(topo%bpair)) deallocate (topo%bpair)
-    if (allocated(topo%alphanb)) deallocate (topo%alphanb)
-    if (allocated(topo%chieeq)) deallocate (topo%chieeq)
-    if (allocated(topo%gameeq)) deallocate (topo%gameeq)
-    if (allocated(topo%alpeeq)) deallocate (topo%alpeeq)
-    if (allocated(topo%qa)) deallocate (topo%qa)
-    if (allocated(topo%zetac6)) deallocate (topo%zetac6)
-    if (allocated(topo%xyze0)) deallocate (topo%xyze0)
-    if (allocated(topo%b3list)) deallocate (topo%b3list)
-    if (allocated(topo%fraglist)) deallocate (topo%fraglist)
-    if (allocated(topo%qfrag)) deallocate (topo%qfrag)
-    if (allocated(topo%hbatHl)) deallocate (topo%hbatHl)
-    if (allocated(topo%hbbas)) deallocate (topo%hbbas)
-    if (allocated(topo%hbaci)) deallocate (topo%hbaci)
-    if (allocated(topo%hbatABl)) deallocate (topo%hbatABl)
-    if (allocated(topo%xbatABl)) deallocate (topo%xbatABl)
-
-    if (allocated(topo%blist)) deallocate (topo%blist)
-    if (allocated(topo%nr_hb)) deallocate (topo%nr_hb)
-    if (allocated(topo%bond_hb_AH)) deallocate (topo%bond_hb_AH)
-    if (allocated(topo%bond_hb_B)) deallocate (topo%bond_hb_B)
-    if (allocated(topo%bond_hb_Bn)) deallocate (topo%bond_hb_Bn)
-    if (allocated(topo%alist)) deallocate (topo%alist)
-    if (allocated(topo%tlist)) deallocate (topo%tlist)
-    if (allocated(topo%vbond)) deallocate (topo%vbond)
-    if (allocated(topo%vangl)) deallocate (topo%vangl)
-    if (allocated(topo%vtors)) deallocate (topo%vtors)
+!    if (allocated(topo%nb)) deallocate (topo%nb)
+!    if (allocated(topo%bpair)) deallocate (topo%bpair)
+!    if (allocated(topo%alphanb)) deallocate (topo%alphanb)
+!    if (allocated(topo%chieeq)) deallocate (topo%chieeq)
+!    if (allocated(topo%gameeq)) deallocate (topo%gameeq)
+!    if (allocated(topo%alpeeq)) deallocate (topo%alpeeq)
+!    if (allocated(topo%qa)) deallocate (topo%qa)
+!    if (allocated(topo%zetac6)) deallocate (topo%zetac6)
+!    if (allocated(topo%xyze0)) deallocate (topo%xyze0)
+!    if (allocated(topo%b3list)) deallocate (topo%b3list)
+!    if (allocated(topo%fraglist)) deallocate (topo%fraglist)
+!    if (allocated(topo%qfrag)) deallocate (topo%qfrag)
+!    if (allocated(topo%hbatHl)) deallocate (topo%hbatHl)
+!    if (allocated(topo%hbbas)) deallocate (topo%hbbas)
+!    if (allocated(topo%hbaci)) deallocate (topo%hbaci)
+!    if (allocated(topo%hbatABl)) deallocate (topo%hbatABl)
+!    if (allocated(topo%xbatABl)) deallocate (topo%xbatABl)
+!
+!    if (allocated(topo%blist)) deallocate (topo%blist)
+!    if (allocated(topo%nr_hb)) deallocate (topo%nr_hb)
+!    if (allocated(topo%bond_hb_AH)) deallocate (topo%bond_hb_AH)
+!    if (allocated(topo%bond_hb_B)) deallocate (topo%bond_hb_B)
+!    if (allocated(topo%bond_hb_Bn)) deallocate (topo%bond_hb_Bn)
+!    if (allocated(topo%alist)) deallocate (topo%alist)
+!    if (allocated(topo%tlist)) deallocate (topo%tlist)
+!    if (allocated(topo%vbond)) deallocate (topo%vbond)
+!    if (allocated(topo%vangl)) deallocate (topo%vangl)
+!    if (allocated(topo%vtors)) deallocate (topo%vtors)
 
   end subroutine gfnff_param_dealloc
 

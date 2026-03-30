@@ -1,7 +1,7 @@
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 ! This file is part of gfnff.
 !
-! Copyright (C) 2023 Philipp Pracht
+! Copyright (C) 2023-2026 Philipp Pracht
 !
 ! gfnff is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -15,11 +15,12 @@
 !
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with gfnff. If not, see <https://www.gnu.org/licenses/>.
-!--------------------------------------------------------------------------------!
+! ──────────────────────────────────────────────────────────────────────────────
 !> The original (unmodified) source code can be found under the GNU LGPL 3.0 license
 !> Copyright (C) 2019-2020 Sebastian Ehlert, Sebastian Spicher, Stefan Grimme
 !> at https://github.com/grimme-lab/xtb
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
+
 !> A collection of helper routines needed by gfnff
 module gfnff_helpers
   use iso_fortran_env,only:wp => real64
@@ -28,17 +29,30 @@ module gfnff_helpers
 
   !> public from this module
   public :: lin
-  public :: mrecgff
-  public :: getring36,ssort
-  public :: vlen,vsub,valijklff
-  public :: omega,domegadr,dphidr,bangl,impsc
+  public :: mrecgff,mrecgffPBC
+  !public :: getring36,ssort
+  public :: vlen,vsub,valijklff,valijklffPBC
+  public :: omega,domegadr,dphidr,bangl,banglPBC,impsc
+  public :: omegaPBC,domegadrPBC,dphidrPBC
 
   public :: crprod
   interface crprod
     module procedure crossprod
   end interface crprod
+  public :: crossproduct
 
   public :: readl
+
+  public :: bisectSearch
+  interface bisectSearch
+    module procedure :: bisectSearchReal
+    module procedure :: bisectSearchInteger
+  end interface bisectSearch
+
+  public :: indexHeapSort
+
+  real(wp),private,parameter :: eps = 1.0d-14
+  real(wp),private,parameter :: pi = 3.1415926535897932384626433832795029d0
 
 !========================================================================================!
 !========================================================================================!
@@ -96,198 +110,105 @@ contains !> MODULE PROCEDURES START HERE
   end subroutine mrecgff2
 
 !========================================================================================!
-  subroutine getring36(n,at,nbin,a0_in,cout,irout)
+
+  subroutine mrecgffPBC(nat,numctr,numnb,nb,molcount,molvec)
+    !**********************************************
+    !* PBC-aware fragment search over the 3D
+    !* neighbour array nb(numnb,nat,numctr).
+    !* Atoms bonded across cell boundaries are
+    !* placed in the same fragment.
+    !**********************************************
     implicit none
-    integer :: cout(10,20),irout(20)  ! output: atomlist, ringsize, # of rings in irout(20)
-    integer :: at(n)
-    integer :: n,nbin(20,n),a0,i,nb(20,n),a0_in
-    integer :: i1,i2,i3,i4,i5,i6,i7,i8,i9,i10
-    integer :: n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n10
-    integer :: a1,a2,a3,a4,a5,a6,a7,a8,a9,a10
-    integer :: list(n),m,mm,nn,c(10),cdum(10,600),iring
-    integer :: adum1(0:n),adum2(0:n),kk,j,idum(600),same(600),k
-    real(wp) :: w(n),av,sd
+    integer,intent(in)    :: nat,numctr,numnb,nb(numnb,nat,numctr)
+    integer,intent(inout) :: molvec(nat),molcount
+    integer :: i,j,iTr
+    real(wp),allocatable :: bond(:,:,:)
+    logical,allocatable  :: taken(:)
 
-    if (n .le. 2) return
-
-    nn = nbin(20,a0_in)
-
-    cdum = 0
-    kk = 0
-    do m = 1,nn
-!     if(nb(m,a0_in).eq.1) cycle
-      nb = nbin
-      do i = 1,n
-        if (nb(20,i) .eq. 1) nb(20,i) = 0
-      end do
-
-      do mm = 1,nn
-        w(mm) = dble(mm)
-        list(mm) = mm
-      end do
-      w(m) = 0.0d0
-      call ssort(nn,w,list)
-      do mm = 1,nn
-        nb(mm,a0_in) = nbin(list(mm),a0_in)
-      end do
-
-      iring = 0
-      c = 0
-
-      a0 = a0_in
-      n0 = nb(20,a0)
-
-      do i1 = 1,n0
-        a1 = nb(i1,a0)
-        if (a1 .eq. a0) cycle
-        n1 = nb(20,a1)
-        do i2 = 1,n1
-          a2 = nb(i2,a1)
-          if (a2 .eq. a1) cycle
-          n2 = nb(20,a2)
-          do i3 = 1,n2
-            a3 = nb(i3,a2)
-            n3 = nb(20,a3)
-            if (a3 .eq. a2) cycle
-            c(1) = a1
-            c(2) = a2
-            c(3) = a3
-            if (a3 .eq. a0.and.chkrng(n,3,c)) then
-              iring = 3
-              kk = kk+1
-              cdum(1:iring,kk) = c(1:iring)
-              idum(kk) = iring
-            end if
-            do i4 = 1,n3
-              a4 = nb(i4,a3)
-              n4 = nb(20,a4)
-              if (a4 .eq. a3) cycle
-              c(4) = a4
-              if (a4 .eq. a0.and.chkrng(n,4,c)) then
-                iring = 4
-                kk = kk+1
-                cdum(1:iring,kk) = c(1:iring)
-                idum(kk) = iring
-              end if
-              do i5 = 1,n4
-                a5 = nb(i5,a4)
-                n5 = nb(20,a5)
-                if (a5 .eq. a4) cycle
-                c(5) = a5
-                if (a5 .eq. a0.and.chkrng(n,5,c)) then
-                  iring = 5
-                  kk = kk+1
-                  cdum(1:iring,kk) = c(1:iring)
-                  idum(kk) = iring
-                end if
-                do i6 = 1,n5
-                  a6 = nb(i6,a5)
-                  n6 = nb(20,a6)
-                  if (a6 .eq. a5) cycle
-                  c(6) = a6
-                  if (a6 .eq. a0.and.chkrng(n,6,c)) then
-                    iring = 6
-                    kk = kk+1
-                    cdum(1:iring,kk) = c(1:iring)
-                    idum(kk) = iring
-                  end if
-                end do
-              end do
-            end do
-          end do
+    allocate (taken(nat),bond(nat,nat,numctr))
+    bond = 0.0_wp
+    do i = 1,nat
+      do iTr = 1,numctr
+        do j = 1,nb(numnb,i,iTr)
+          bond(nb(j,i,iTr),i,iTr) = 1.0_wp
         end do
       end do
     end do
 
-! compare
-    same = 0
-    do i = 1,kk
-      do j = i+1,kk
-        if (idum(i) .ne. idum(j)) cycle ! different ring size
-        if (same(j) .eq. 1) cycle ! already double
-        adum1 = 0
-        adum2 = 0
-        do m = 1,10
-          i1 = cdum(m,i)
-          i2 = cdum(m,j)
-          adum1(i1) = 1
-          adum2(i2) = 1
-        end do
-        if (sum(abs(adum1-adum2)) .ne. 0) then
-          same(j) = 0
-        else
-          same(j) = 1
-        end if
-      end do
-    end do
+    if (int(sum(bond)) .ne. sum(nb(numnb,:,:))) then
+      write (*,*)
+      write (*,'(a,2i10)') ' Warning (mrecgffPBC): bond sum mismatch', &
+        & int(sum(bond)),sum(nb(numnb,:,:))
+      write (*,*)
+    end if
 
-    m = 0
-    do i = 1,kk
-      if (same(i) .eq. 0) then
-        m = m+1
-        if (m .gt. 20) exit !stop 'too many rings'
-        irout(m) = idum(i)     ! number of atoms in ring m
-        nn = idum(i)
-        cout(1:nn,m) = cdum(1:nn,i)
-        i2 = 0
-        do k = 1,nn            ! determine if its a hetereo
-          i1 = at(cdum(k,i))
-          i2 = i2+i1
-        end do
-        av = dble(i2)/dble(nn)
-        sd = 0
-        cout(m,19) = 0
-        do k = 1,nn
-          i1 = at(cdum(k,i))
-          sd = sd+(av-dble(i1))**2
-        end do
-        if (sd .gt. 1.d-6) cout(m,19) = idint(1000.*sqrt(sd)/dble(nn))
+    molvec = 0
+    molcount = 1
+    taken = .false.
+    do i = 1,nat
+      if (.not.taken(i)) then
+        molvec(i) = molcount
+        taken(i) = .true.
+        call mrecgff2PBC(numctr,numnb,nat,nb,i,taken,bond,molvec,molcount)
+        molcount = molcount+1
       end if
     end do
-    irout(20) = m  ! number of rings for this atom
+    molcount = molcount-1
+  end subroutine mrecgffPBC
 
-    return
-  end subroutine getring36
-
-  logical function chkrng(nn,n,c)
+  recursive subroutine mrecgff2PBC(numctr,numnb,nat,nb,i,taken,bond,molvec,molcnt)
+    !**********************************************
+    !* Recursive helper for mrecgffPBC.
+    !**********************************************
     implicit none
-    integer n,idum(nn),nn,c(10),i,j
-    chkrng = .true.
-    idum = 0
-    do i = 1,n
-      idum(c(i)) = idum(c(i))+1
-    end do
-    j = 0
-    do i = 1,nn
-      if (idum(i) .eq. 1) j = j+1
-    end do
-    if (j .ne. n) chkrng = .false.
-  end function chkrng
+    integer,intent(in)    :: numctr,numnb,nat,nb(numnb,nat,numctr),i,molcnt
+    integer :: j,icn,k,iTr,j_iTr(2)
+    real(wp),intent(inout) :: bond(nat,nat,numctr)
+    integer,intent(inout)  :: molvec(nat)
+    logical,intent(inout)  :: taken(nat)
 
-  subroutine ssort(n,edum,ind)
-    implicit none
-    integer :: n,ii,k,j,m,i,sc1
-    real(wp) :: edum(n),pp
-    integer :: ind(n)
-
-    do ii = 2,n
-      i = ii-1
-      k = i
-      pp = edum(i)
-      do j = ii,n
-        if (edum(j) .gt. pp) exit
-        k = j
-        pp = edum(j)
-      end do
-      if (k .eq. i) exit
-      edum(k) = edum(i)
-      edum(i) = pp
-      sc1 = ind(i)
-      ind(i) = ind(k)
-      ind(k) = sc1
+    icn = sum(nb(numnb,i,:))
+    do k = 1,icn
+      j_iTr = maxloc(bond(:,i,:))
+      j = j_iTr(1)
+      iTr = j_iTr(2)
+      bond(j,i,iTr) = 0.0_wp
+      if (i .eq. j.and.iTr .eq. 1) cycle
+      if (.not.taken(j)) then
+        molvec(j) = molcnt
+        taken(j) = .true.
+        call mrecgff2PBC(numctr,numnb,nat,nb,j,taken,bond,molvec,molcnt)
+      end if
     end do
-  end subroutine ssort
-!========================================================================================!
+  end subroutine mrecgff2PBC
+
+! ══════════════════════════════════════════════════════════════════════════════
+
+!  subroutine ssort(n,edum,ind)
+!    implicit none
+!    integer :: n,ii,k,j,i,sc1
+!    real(wp) :: edum(n),pp
+!    integer :: ind(n)
+!
+!    do ii = 2,n
+!      i = ii-1
+!      k = i
+!      pp = edum(i)
+!      do j = ii,n
+!        if (edum(j) .gt. pp) exit
+!        k = j
+!        pp = edum(j)
+!      end do
+!      if (k .eq. i) exit
+!      edum(k) = edum(i)
+!      edum(i) = pp
+!      sc1 = ind(i)
+!      ind(i) = ind(k)
+!      ind(k) = sc1
+!    end do
+!  end subroutine ssort
+
+! ══════════════════════════════════════════════════════════════════════════════
 
   subroutine vsub(a,b,c,n)
     implicit none
@@ -300,7 +221,7 @@ contains !> MODULE PROCEDURES START HERE
     return
   end subroutine vsub
 
-!========================================================================================!
+! ══════════════════════════════════════════════════════════════════════════════
 
   real(wp) function vlen(a)
     implicit none !double precision (a-h,o-z)
@@ -314,18 +235,15 @@ contains !> MODULE PROCEDURES START HERE
     return
   end function vlen
 
-!========================================================================================!
+! ══════════════════════════════════════════════════════════════════════════════
 
   real(wp) function valijklff(natoms,xyz,i,j,k,l)
     implicit none
     integer :: ic,i,j,k,l,natoms
     real(wp) :: xyz(3,natoms)
     real(wp) :: ra(3),rb(3),rc(3),na(3),nb(3)
-    real(wp) :: rab,rbc,thab,thbc
-    real(wp) :: nan,nbn,rcn,snanb,deter
-
-    real(wp),parameter :: eps = 1.0d-14
-    real(wp),parameter :: pi = 3.1415926535897932384626433832795029d0
+    real(wp) :: thab,thbc
+    real(wp) :: nan,nbn,snanb,deter
 
     !>-- get torsion coordinate
     do ic = 1,3
@@ -356,6 +274,66 @@ contains !> MODULE PROCEDURES START HERE
 
     valijklff = acos(snanb)
   end function valijklff
+! ──────────────────────────────────────────────────────────────────────────────
+  real(wp) function valijklffPBC(mo,natoms,xyz,i,j,k,l,vTrj,vTrk,vTrl)
+
+    implicit none
+
+    integer::  ic,i,j,k,l,natoms,mo
+
+    real(wp) :: xyz(3,natoms),vTrj(3),vTrk(3),vTrl(3),vDum(3)
+    real(wp) :: ra(3),rb(3),rc(3),na(3),nb(3)
+    real(wp) :: rab,rbc,thab,thbc
+    real(wp) :: nan,nbn,rcn,snanb,deter
+
+    vDum = 0.0 ! Dummy vector for valijkPBC function
+
+    !> get torsion coordinate
+    if (mo .eq. 1) then ! egtors call -> j (=ii) in central cell
+      do ic = 1,3
+        ra(ic) = xyz(ic,j)-(xyz(ic,i)+vTrl(ic))
+        rb(ic) = (xyz(ic,k)+vTrj(ic))-xyz(ic,j)
+        rc(ic) = (xyz(ic,l)+vTrk(ic))-(xyz(ic,k)+vTrj(ic))
+      end do
+    else ! abhgfnff_eg3 call -> l (=H) in central cell
+      do ic = 1,3
+        ra(ic) = (xyz(ic,j)+vTrk(ic))-(xyz(ic,i)+vTrj(ic)) ! B - R
+        rb(ic) = (xyz(ic,k)+vTrl(ic))-(xyz(ic,j)+vTrk(ic)) ! C - B
+        rc(ic) = xyz(ic,l)-(xyz(ic,k)+vTrl(ic)) ! H - C
+      end do
+    end if
+
+    !> determinante of rb,ra,rc  (triple product)
+    deter = ra(1)*(rb(2)*rc(3)-rb(3)*rc(2)) &
+    &      -ra(2)*(rb(1)*rc(3)-rb(3)*rc(1)) &
+    &      +ra(3)*(rb(1)*rc(2)-rb(2)*rc(1))
+
+    if (mo .eq. 1) then ! not used
+      thab = valijkPBC(1,natoms,xyz,i,k,j,vTrl,vTrj,vDum)
+      thbc = valijkPBC(2,natoms,xyz,j,l,k,vTrk,vTrj,vDum)
+    else
+      thab = valijkPBC(3,natoms,xyz,i,k,j,vTrj,vTrl,vTrk) !    i=R       k=C       j=B
+      ! vTrj=vTrR vTrl=vTrC vTrk=vTrB
+      thbc = valijkPBC(4,natoms,xyz,j,l,k,vTrk,vTrl,vDum) !    j=B    l=H    k=C
+      ! vTrk=vTrB     vTrl=vTrC
+    end if
+    call crossprod(ra,rb,na)
+    call crossprod(rb,rc,nb)
+    nan = vecnorm(na,3,1)
+    nbn = vecnorm(nb,3,1)
+
+    snanb = 0.0d0
+    do ic = 1,3 ! scalar product of the crossproducts
+      snanb = snanb+na(ic)*nb(ic)
+    end do
+    if (abs(abs(snanb)-1.d0) .lt. eps) then
+      snanb = sign(1.d0,snanb)
+    end if
+
+    valijklffPBC = acos(snanb)
+  end function valijklffPBC
+
+! ══════════════════════════════════════════════════════════════════════════════
 
   real(wp) Function valijk(nat,xyz,j,k,i)
     implicit none
@@ -382,6 +360,50 @@ contains !> MODULE PROCEDURES START HERE
     valijk = acos(rab)
 
   End Function valijk
+! ──────────────────────────────────────────────────────────────────────────────
+  real(wp) Function valijkPBC(mode,nat,xyz,j,k,i,vTr1,vTr2,vTr3)
+    implicit none
+    integer mode,nat,j,k,i,ic
+    real(wp) :: ra(3),rb(3),rab
+    real(wp) :: xyz(3,nat),ran,rbn,vTr1(3),vTr2(3),vTr3(3)
+
+    if (mode .eq. 1) then ! here j=l,k=j,i=i are inserted, vTr1=vTrl, vTr2=vTrj
+      do ic = 1,3
+        ra(ic) = (xyz(ic,j)+vTr1(ic))-xyz(ic,i)
+        rb(ic) = (xyz(ic,k)+vTr2(ic))-xyz(ic,i)
+      end do
+    elseif (mode .eq. 2) then ! here j=i,k=k,i=j are inserted vTr1=vTrk, vTr2=vTrj
+      do ic = 1,3
+        ra(ic) = xyz(ic,j)-(xyz(ic,i)+vTr2(ic))
+        rb(ic) = (xyz(ic,k)+vTr1(ic))-(xyz(ic,i)+vTr2(ic))
+      end do
+    elseif (mode .eq. 3) then ! here j=R k=C i=B vTr1=vTrR vTr2=vTrC vTr3=vTrB
+      do ic = 1,3
+        ra(ic) = (xyz(ic,j)+vTr1(ic))-(xyz(ic,i)+vTr3(ic)) ! R - B
+        rb(ic) = (xyz(ic,k)+vTr2(ic))-(xyz(ic,i)+vTr3(ic)) ! C - B
+      end do
+    elseif (mode .eq. 4) then ! here j=B k=H i=C vTr1=vTrB vTr2=vTrC
+      do ic = 1,3
+        ra(ic) = (xyz(ic,j)+vTr1(ic))-(xyz(ic,i)+vTr2(ic))
+        rb(ic) = (xyz(ic,k))-(xyz(ic,i)+vTr2(ic))
+      end do
+    end if
+
+    ran = vecnorm(ra,3,1)
+    rbn = vecnorm(rb,3,1)
+    rab = 0.d0
+    do ic = 1,3
+      rab = rab+ra(ic)*rb(ic)
+    end do
+
+    if (abs(abs(rab)-1.d0) .lt. eps) then
+      rab = sign(1.d0,rab)
+    end if
+    valijkPBC = acos(rab)
+
+  end function valijkPBC
+
+! ══════════════════════════════════════════════════════════════════════════════
 
   subroutine crossprod(ra,rb,rab)
     implicit none
@@ -390,6 +412,12 @@ contains !> MODULE PROCEDURES START HERE
     rab(2) = ra(3)*rb(1)-ra(1)*rb(3)
     rab(3) = ra(1)*rb(2)-ra(2)*rb(1)
   end Subroutine crossprod
+
+  function crossproduct(ra,rb) result(rab)
+    implicit none
+    real(wp) :: ra(3),rb(3),rab(3)
+    call crossprod(ra,rb,rab)
+  end function crossproduct
 
   real(wp) Function vecnorm(r,n,inorm)
     implicit none
@@ -431,7 +459,7 @@ contains !> MODULE PROCEDURES START HERE
 
     real(wp) :: xyz(3,nat)
     real(wp) :: rd(3),re(3),rn(3),rv(3),rnv
-    real(wp) :: rkjn,rljn,rnn,rvn
+    real(wp) :: rnn,rvn
 
     do ic = 1,3
       re(ic) = xyz(ic,i)-xyz(ic,j)
@@ -509,20 +537,108 @@ contains !> MODULE PROCEDURES START HERE
 
   End Subroutine domegadr
 
-!========================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
+  real(wp) Function omegaPBC(nat,xyz,i,j,k,l,vTr1,vTr2,vTr3)
+    !   Calculates the inversion angle (with PBC)
+    !  .....................................................................
+    implicit none
+    integer :: ic,nat,i,j,k,l
 
+    real(wp) :: xyz(3,nat),vTr1(3),vTr2(3),vTr3(3),&
+       &        rd(3),re(3),rn(3),rv(3),rnv,&
+       &        rkjn,rljn,rnn,rvn
+    ! out-of-plane case from ini; atoms and iTr's sorted by distance to atom i
+    ! i=central, j=1st nb, k=2nd, l=3rd
+    do ic = 1,3
+      re(ic) = xyz(ic,i)-(xyz(ic,j)+vTr2(ic))                ! Vec central to 1st nb
+      rd(ic) = (xyz(ic,k)+vTr3(ic))-(xyz(ic,j)+vTr2(ic))            ! Vec 1st to 2nd nb
+      rv(ic) = (xyz(ic,l)+vTr1(ic))-xyz(ic,i) ! Vec central to 3rd nb
+    end do
+    call crossprod(re,rd,rn)
+    rnn = vecnorm(rn,3,1)
+    rvn = vecnorm(rv,3,1)
+
+    rnv = rn(1)*rv(1)+rn(2)*rv(2)+rn(3)*rv(3)
+    omegaPBC = asin(rnv)
+
+  End function omegaPBC
+! ──────────────────────────────────────────────────────────────────────────────
+
+  Subroutine domegadrPBC(nat,xyz,i,j,k,l,vTr1,vTr2,vTr3,omega,&
+        &            domegadri,domegadrj,domegadrk,domegadrl)
+    !     inversion derivatives (with PBC)
+    !  .....................................................................
+    implicit none
+    integer :: ic,i,j,k,l,nat
+
+    real(wp) ::  omega,sinomega,&
+       &         vTr1(3),vTr2(3),vTr3(3), &
+       &         xyz(3,nat),onenner,rnn,rvn,&
+       &         rn(3),rv(3),rd(3),re(3),rdme(3),rve(3),&
+       &         rne(3),rdv(3),rdn(3),&
+       &         rvdme(3),rndme(3),nenner,&
+       &         domegadri(3),domegadrj(3),domegadrk(3),domegadrl(3)
+
+    sinomega = sin(omega)
+
+    do ic = 1,3
+      re(ic) = xyz(ic,i)-(xyz(ic,j)+vTr2(ic))            ! Vec central to 1st nb
+      rd(ic) = (xyz(ic,k)+vTr3(ic))-(xyz(ic,j)+vTr2(ic))  ! Vec 1st to 2nd nb
+      rv(ic) = (xyz(ic,l)+vTr1(ic))-xyz(ic,i)             ! Vec central to 3rd nb
+
+      rdme(ic) = rd(ic)-re(ic)
+    end do
+
+    call crossprod(re,rd,rn)
+    rvn = vecnorm(rv,3,0)
+    rnn = vecnorm(rn,3,0)
+
+    call crossprod(rv,re,rve)
+    call crossprod(rn,re,rne)
+    call crossprod(rd,rv,rdv)
+    call crossprod(rd,rn,rdn)
+    call crossprod(rv,rdme,rvdme)
+    call crossprod(rn,rdme,rndme)
+
+    nenner = rnn*rvn*cos(omega)
+    if (abs(nenner) .gt. eps) then
+      onenner = 1.d0/nenner
+      do ic = 1,3
+        ! ... domega/dri
+        domegadri(ic) = onenner*(rdv(ic)-rn(ic)-&
+           &                       sinomega*(rvn/rnn*rdn(ic)-rnn/rvn*rv(ic)))
+
+        ! ... domega/drj
+        domegadrj(ic) = onenner*(rvdme(ic)-sinomega*rvn/rnn*rndme(ic))
+
+        ! ... domega/drk
+        domegadrk(ic) = onenner*(rve(ic)-sinomega*rvn/rnn*rne(ic))
+
+        ! ... domega/drl
+        domegadrl(ic) = onenner*(rn(ic)-sinomega*rnn/rvn*rv(ic))
+      end do
+    else
+      do ic = 1,3
+        domegadri(ic) = 0.d0
+        domegadrj(ic) = 0.d0
+        domegadrk(ic) = 0.d0
+        domegadrl(ic) = 0.d0
+      end do
+    end if
+  end subroutine domegadrPBC
+
+! ══════════════════════════════════════════════════════════════════════════════
   Subroutine dphidr(nat,xyz,i,j,k,l,phi, &
   &                dphidri,dphidrj,dphidrk,dphidrl)
     !> the torsion derivatives
-
     implicit none
     integer :: ic,i,j,k,l,nat
-    real(wp) :: sinphi,cosphi,onenner,thab,thbc
+    real(wp) :: sinphi,cosphi,onenner
     real(wp) :: ra(3),rb(3),rc(3),rab(3),rac(3),rbc(3),rbb(3)
     real(wp) :: raa(3),rba(3),rapba(3),rapbb(3),rbpca(3),rbpcb(3)
     real(wp) :: rapb(3),rbpc(3),na(3),nb(3),nan,nbn
     real(wp) :: dphidri(3),dphidrj(3),dphidrk(3),dphidrl(3)
-    real(wp) :: xyz(3,nat),phi,nenner,eps,vz
+    real(wp) :: xyz(3,nat),phi,nenner,eps
 
     parameter(eps=1.d-14)
 
@@ -581,8 +697,100 @@ contains !> MODULE PROCEDURES START HERE
     end do
 
   End Subroutine dphidr
+! ──────────────────────────────────────────────────────────────────────────────
+  Subroutine dphidrPBC(mode,nat,xyz,i,j,k,l,vTrR,vTrB,vTrC,phi,&
+        &                  dphidri,dphidrj,dphidrk,dphidrl)
+    !     the torsion derivatives with PBC images
+    implicit none
 
-!========================================================================================!
+    integer :: mode,ic,i,j,k,l,nat
+
+    real(wp) :: vTrR(3),vTrB(3),vTrC(3), &
+    &           sinphi,cosphi,onenner,thab,thbc,&
+    &           ra(3),rb(3),rc(3),rab(3),rac(3),rbc(3),rbb(3),&
+    &           raa(3),rba(3),rapba(3),rapbb(3),rbpca(3),rbpcb(3),&
+    &           rapb(3),rbpc(3),na(3),nb(3),nan,nbn,&
+    &           dphidri(3),dphidrj(3),dphidrk(3),dphidrl(3),&
+    &           xyz(3,nat),phi,nenner,vz
+
+    cosphi = cos(phi)
+    sinphi = sin(phi)
+    if (mode .eq. 1) then
+      do ic = 1,3
+        ra(ic) = xyz(ic,j)+vTrB(ic)-xyz(ic,i)-vTrR(ic)
+        rb(ic) = xyz(ic,k)+vTrC(ic)-xyz(ic,j)-vTrB(ic)
+        rc(ic) = xyz(ic,l)-xyz(ic,k)-vTrC(ic)
+
+        rapb(ic) = ra(ic)+rb(ic)
+        rbpc(ic) = rb(ic)+rc(ic)
+      end do
+    elseif (mode .eq. 2) then
+      do ic = 1,3
+        ra(ic) = -(xyz(ic,i)+vTrC(ic))+xyz(ic,j)
+        rb(ic) = -xyz(ic,j)+(xyz(ic,k)+vTrR(ic))
+        rc(ic) = -(xyz(ic,k)+vTrR(ic))+(xyz(ic,l)+vTrB(ic))
+
+        rapb(ic) = ra(ic)+rb(ic)
+        rbpc(ic) = rb(ic)+rc(ic)
+      end do
+    end if
+    call crossprod(ra,rb,na)
+    call crossprod(rb,rc,nb)
+    nan = vecnorm(na,3,0)
+    nbn = vecnorm(nb,3,0)
+
+    nenner = nan*nbn*sinphi
+    if (abs(nenner) .lt. eps) then
+      dphidri = 0
+      dphidrj = 0
+      dphidrk = 0
+      dphidrl = 0
+      if (abs(nan*nbn) .gt. eps) then
+        onenner = 1.0d0/(nan*nbn)
+      else
+        onenner = 0.0d0
+      end if
+    else
+      onenner = 1.d0/nenner
+    end if
+
+    call crossprod(na,rb,rab)
+    call crossprod(nb,ra,rba)
+    call crossprod(na,rc,rac)
+    call crossprod(nb,rb,rbb)
+    call crossprod(nb,rc,rbc)
+    call crossprod(na,ra,raa)
+
+    call crossprod(rapb,na,rapba)
+    call crossprod(rapb,nb,rapbb)
+    call crossprod(rbpc,na,rbpca)
+    call crossprod(rbpc,nb,rbpcb)
+
+    if (abs(onenner) .gt. eps) then
+      do ic = 1,3
+        ! ... dphidri
+        dphidri(ic) = onenner*(cosphi*nbn/nan*rab(ic)-rbb(ic))
+        ! ... dphidrj
+        dphidrj(ic) = onenner*(cosphi*(nbn/nan*rapba(ic)&
+           &                                +nan/nbn*rbc(ic))&
+           &                        -(rac(ic)+rapbb(ic)))
+        ! ... dphidrk
+        dphidrk(ic) = onenner*(cosphi*(nbn/nan*raa(ic)&
+           &                             +nan/nbn*rbpcb(ic))&
+           &                        -(rba(ic)+rbpca(ic)))
+        ! ... dphidrl
+        dphidrl(ic) = onenner*(cosphi*nan/nbn*rbb(ic)-rab(ic))
+      end do
+    else
+      dphidri = 0.0d0
+      dphidrj = 0.0d0
+      dphidrk = 0.0d0
+      dphidrl = 0.0d0
+    end if
+
+  End subroutine dphidrPBC
+
+! ══════════════════════════════════════════════════════════════════════════════
 
   pure subroutine bangl(xyz,i,j,k,angle)
     implicit none
@@ -603,6 +811,36 @@ contains !> MODULE PROCEDURES START HERE
 
   end subroutine bangl
 
+  pure subroutine banglPBC(mode,xyz,i,j,k,iTr,iTr2,transVec,angle)
+    implicit none
+    real(wp),intent(in)  :: xyz(3,*)
+    integer,intent(in)  :: mode,i,j,k,iTr,iTr2  ! j is in the middle
+    real(wp),intent(in) :: transVec(:,:)
+!    type(TNeigh),intent(in) :: neigh
+    real(wp),intent(out) :: angle
+
+    real(wp) :: d2ij,d2jk,d2ik,xy,temp,trV(3),trV2(3)
+    !trV = neigh%transVec(:,iTr)
+    !trV2 = neigh%transVec(:,iTr2)
+    trV  = transVec(:,iTr)   
+    trV2 = transVec(:,iTr2) 
+    if (mode .eq. 1) then
+      d2ij = sum(((xyz(:,i)+trV)-xyz(:,j))**2)
+      d2jk = sum((xyz(:,j)-(xyz(:,k)+trV2))**2)
+      d2ik = sum(((xyz(:,i)+trV)-(xyz(:,k)+trV2))**2)
+    end if
+    if (mode .eq. 2) then
+      d2ij = sum((xyz(:,i)-(xyz(:,j)+trV))**2)
+      d2jk = sum(((xyz(:,j)+trV)-(xyz(:,k)+trV2))**2)
+      d2ik = sum((xyz(:,i)-(xyz(:,k)+trV2))**2)
+    end if
+    xy = sqrt(d2ij*d2jk)
+    temp = 0.5d0*(d2ij+d2jk-d2ik)/xy  ! the angle is between side dij and djk
+    if (temp .gt. 1.0d0) temp = 1.0d0
+    if (temp .lt. -1.0d0) temp = -1.0d0
+    angle = acos(temp)
+
+  end subroutine banglPBC
 !========================================================================================!
 
   pure subroutine impsc(a,b,c)
@@ -717,5 +955,177 @@ contains !> MODULE PROCEDURES START HERE
       end if
     end subroutine checktype
   end subroutine getfloats
+
+!================================================================================!
+
+!> Integer case for bisection search
+  pure subroutine bisectSearchInteger(j,xx,x)
+
+    !> Located element such that xx(j) <= x < xx(j+1)
+    integer,intent(out) :: j
+
+    !> Array of values in monotonic order to search through
+    integer,intent(in) :: xx(:)
+
+    !> Value to locate j for
+    integer,intent(in) :: x
+
+    integer :: n
+    integer :: jlower,jupper,jcurr
+
+    n = size(xx)
+    if (n == 0) then
+      j = 0
+      return
+    end if
+
+    if (x < xx(1)) then
+      j = 0
+    else if (x == xx(1)) then
+      j = 1
+    else if (x == xx(n)) then
+      j = n-1
+    else if (x > xx(n)) then
+      j = n
+    else
+      jlower = 0
+      jcurr = n+1
+      do while ((jcurr-jlower) > 1)
+        jupper = (jcurr+jlower)/2
+        if ((xx(n) >= xx(1)).eqv.(x >= xx(jupper))) then
+          jlower = jupper
+        else
+          jcurr = jupper
+        end if
+      end do
+      j = jlower
+    end if
+
+  end subroutine bisectSearchInteger
+
+!> Real case for bisection search
+  pure subroutine bisectSearchReal(j,xx,x,tol)
+
+    !> Located element such that xx(j) <= x < xx(j+1)
+    integer,intent(out) :: j
+
+    !> Array of values in monotonic order to search through
+    real(wp),intent(in) :: xx(:)
+
+    !> Value to locate j for
+    real(wp),intent(in) :: x
+
+    !> Tolerance for equality comparision
+    real(wp),intent(in),optional :: tol
+
+    integer :: n
+    integer :: jlower,jupper,jcurr
+    real(wp) :: rTol
+    logical :: ascending
+
+    n = size(xx)
+    if (n == 0) then
+      j = 0
+      return
+    end if
+
+    if (present(tol)) then
+      rTol = tol
+    else
+      rTol = epsilon(0.0_wp)
+    end if
+
+    if (x < xx(1)-rTol) then
+      j = 0
+    else if (abs(x-xx(1)) <= rTol) then
+      j = 1
+    else if (abs(x-xx(n)) <= rTol) then
+      j = n-1
+    else if (x > xx(n)+rTol) then
+      j = n
+    else
+      ascending = (xx(n) >= xx(1))
+      jlower = 0
+      jcurr = n+1
+      do while ((jcurr-jlower) > 1)
+        jupper = (jcurr+jlower)/2
+        if (ascending.eqv.(x >= xx(jupper)+rTol)) then
+          jlower = jupper
+        else
+          jcurr = jupper
+        end if
+      end do
+      j = jlower
+    end if
+
+  end subroutine bisectSearchReal
+
+! ──────────────────────────────────────────────────────────────────────────────
+
+!> Real case heap sort returning an index.
+!  Based on Numerical Recipes Software 1986-92
+  pure subroutine indexHeapSort(indx,array,tolerance)
+    !> Indexing array on return
+    integer,intent(out) :: indx(:)
+    !> Array of values to be sorted
+    real(wp),intent(in) :: array(:)
+    !> Tolerance for equality of two elements
+    real(wp),intent(in),optional :: tolerance
+
+    integer :: n,ir,ij,il,ii
+    integer :: indxTmp
+    real(wp) :: arrayTmp,tol
+
+    !:ASSERT(size(array)==size(indx))
+
+    if (present(tolerance)) then
+      tol = tolerance
+    else
+      tol = epsilon(0.0_wp)
+    end if
+
+    do ii = 1,size(indx)
+      indx(ii) = ii
+    end do
+    n = size(array)
+    if (n <= 1) return
+    il = n/2+1
+    ir = n
+    do
+      if (il > 1) then
+        il = il-1
+        indxTmp = indx(il)
+        arrayTmp = array(indxTmp)
+      else
+        indxTmp = indx(ir)
+        arrayTmp = array(indxTmp)
+        indx(ir) = indx(1)
+        ir = ir-1
+        if (ir < 1) then
+          indx(1) = indxTmp
+          return
+        end if
+      end if
+      ii = il
+      ij = 2*il
+      do while (ij <= ir)
+        if (ij < ir) then
+          if (array(indx(ij)) < array(indx(ij+1))-tol) then
+            ij = ij+1
+          end if
+        end if
+        if (arrayTmp < array(indx(ij))-tol) then
+          indx(ii) = indx(ij)
+          ii = ij
+          ij = 2*ij
+        else
+          ij = ir+1
+        end if
+      end do
+      indx(ii) = indxTmp
+    end do
+
+  end subroutine indexHeapSort
+
 !========================================================================================!
 end module gfnff_helpers

@@ -1,7 +1,7 @@
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 ! This file is part of gfnff.
 !
-! Copyright (C) 2023 Philipp Pracht
+! Copyright (C) 2023-2026 Philipp Pracht
 !
 ! gfnff is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -15,25 +15,44 @@
 !
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with gfnff. If not, see <https://www.gnu.org/licenses/>.
-!--------------------------------------------------------------------------------!
+! ──────────────────────────────────────────────────────────────────────────────
 !> The original (unmodified) source code can be found under the GNU LGPL 3.0 license
 !> Copyright (C) 2019-2020 Sebastian Ehlert, Sebastian Spicher, Stefan Grimme
 !> at https://github.com/grimme-lab/xtb
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
+
 !> Topological data for force field type calculations and neighbor lists
 module gfnff_data_types
-  use iso_fortran_env, only: wp => real64, sp=>real32
+  use iso_fortran_env,only:wp => real64,sp => real32
+  use gfnff_type_wsc
   implicit none
   private
 
   !> public types and routines
+  public :: TCell
   public :: TGFFTopology
   public :: TGFFNeighbourList,new
   public :: TGFFData,init
   public :: TDispersionData,initgffdispersion
   public :: TGFFGenerator
 
-!========================================================================================!
+! ══════════════════════════════════════════════════════════════════════════════
+
+  !> Periodic cell / lattice data for a given system
+  type :: TCell
+    integer :: npbc = 0                !> Number of periodic dimensions (0=molecule, 1/2/3=periodic)
+    logical :: pbc(3) = .false.        !> Which Cartesian dimensions are periodic
+    real(wp) :: lattice(3,3) = 0.0_wp  !> Direct lattice vectors (columns), in Bohr
+    real(wp) :: rec_lat(3,3) = 0.0_wp  !> Reciprocal lattice vectors (columns), in 1/Bohr (with 2pi factor, G = 2π * A^{-T} * n)
+    real(wp) :: volume = 0.0_wp        !> Unit-cell volume, in Bohr^3
+
+    type(gfnff_wsc) :: wsc
+  contains
+    procedure :: init => init_cell
+    procedure :: init_wsc
+  end type TCell
+
+! ══════════════════════════════════════════════════════════════════════════════
 
   !> Data for the dispersion contribution
   type :: TDispersionData
@@ -48,13 +67,13 @@ module gfnff_data_types
     integer  :: alp = 16
 
     !> Weighting factor for Gaussian interpolation
-    real(wp) :: wf
+    real(wp) :: wf = 0.0_wp
 
     !> Charge steepness
-    real(wp) :: g_a
+    real(wp) :: g_a = 0.0_wp
 
     !> Charge height
-    real(wp) :: g_c
+    real(wp) :: g_c = 0.0_wp
 
     !> Reference data for the dispersion
     integer,allocatable :: atoms(:)
@@ -66,7 +85,8 @@ module gfnff_data_types
     real(wp),allocatable :: c6(:,:,:,:)
 
   end type TDispersionData
-!========================================================================================!
+
+! ══════════════════════════════════════════════════════════════════════════════
 
   !> Topology information for a given system
   type :: TGFFTopology
@@ -75,20 +95,21 @@ module gfnff_data_types
     character(len=:),allocatable :: filename
     character(len=:),allocatable :: refcharges
 
-    !> number of terms
+    !number of terms
     integer  :: nbond
     integer  :: nangl
     integer  :: ntors
+    integer  :: nstors
     integer  :: nathbH
     integer  :: nathbAB
     integer  :: natxbAB
     integer  :: nbatm
     integer  :: nfrag
-    integer  :: maxsystem   !> max. number of fragmentsfor hessian
-    integer  :: bond_hb_nr  !> number of unique AH...B HB/bond terms
-    integer  :: b_max       !> number of B atoms per unique AH bond
+    integer  :: maxsystem   ! max. number of fragmentsfor hessian
+    integer  :: bond_hb_nr  ! number of unique AH...B HB/bond terms
+    integer  :: b_max      ! number of B atoms per unique AH bond
 
-    !> numbers that are rewritten, so must be stored for allocation
+    !numbers that are rewritten, so must be stored for allocation
     integer  :: nbond_blist
     integer  :: nbond_vbond
     integer  :: nangl_alloc
@@ -98,45 +119,46 @@ module gfnff_data_types
     integer  :: read_file_type
 
     !> lists
-    integer,allocatable ::     nb(:,:)   ! neighbors nb(20,i) is the # neigbors
-    integer,allocatable ::      hyb(:)   ! hybridization of every atom
-    integer,allocatable ::    bpair(:)   ! # of cov. between atoms
+    integer,allocatable ::     hyb(:)   ! hybridization of every atom
     integer,allocatable ::  blist(:,:)   ! bonded atoms
     integer,allocatable ::  alist(:,:)   ! angles
     integer,allocatable ::  tlist(:,:)   ! torsions
     integer,allocatable :: b3list(:,:)   ! bond atm
-    integer,allocatable :: sTorsl(:,:)   ! triple bonded carbon potential
-    real(wp),allocatable::      pbo(:)   ! bond order from Hückel
+    integer,allocatable :: sTorsl(:,:)
     !-----------------------------------------------
-    integer,allocatable :: nr_hb(:)        ! Nr. of H bonds per O-H or N-H bond
+    integer,allocatable :: nr_hb(:)      ! Nr. of H bonds per O-H or N-H bond
     integer,allocatable :: bond_hb_AH(:,:) ! A, H atoms in bonds that are also part of HBs
-    integer,allocatable :: bond_hb_B(:,:)  ! B atoms in bonds that are also part of HBs
+    integer,allocatable :: bond_hb_B(:,:,:)  ! B atoms in bonds that are also part of HBs
     integer,allocatable :: bond_hb_Bn(:)   ! Nr. of B atoms for one AH bond pair
     !-----------------------------------------------
-    integer,allocatable :: hbatABl(:,:) ! AB atoms for HB
-    integer,allocatable :: xbatABl(:,:) ! AB atoms for XB
-    integer,allocatable :: hbatHl(:)    ! H  atoms for HB
-    integer,allocatable :: fraglist(:)  ! atoms in molecular fragments (for EEQ)
-    integer,allocatable :: qpdb(:)      ! atomic charge in residues from PDB file
+    integer,allocatable :: hbatABl(:,:)  ! AB atoms for HB
+    integer,allocatable :: xbatABl(:,:)  ! AB atoms for XB
+    integer,allocatable :: hbatHl(:,:)    ! H  atoms for HB
+    integer,allocatable :: fraglist(:)   ! atoms in molecular fragments (for EEQ)
+    integer,allocatable :: qpdb(:)     ! atomic charge in residues from PDB file
 
-    !potential parameters used in energy-gradient routine
-    real(wp),allocatable :: vbond(:,:) ! bonds
-    real(wp),allocatable :: vangl(:,:) ! angles
-    real(wp),allocatable :: vtors(:,:) ! torsions
-    real(wp),allocatable :: chieeq(:)  ! atomic ENs for EEQ
-    real(wp),allocatable :: gameeq(:)  ! atomic gamma for EEQ
-    real(wp),allocatable :: alpeeq(:)  ! atomic alpha for EEQ, squared
-    real(wp),allocatable :: alphanb(:) ! non-bonded exponent for atom pairs
-    real(wp),allocatable :: qa(:)      ! estimated atomic charges (fixed and obtained from topology EEQ)
-    real(wp),allocatable :: xyze0(:,:) ! atom xyz, starting geom. (for Efield energy)
-    real(wp),allocatable :: zetac6(:)  ! D4 scaling factor product
-    real(wp),allocatable :: qfrag(:)   ! fragment charge (for EEQ)
-    real(wp),allocatable :: hbbas(:)   ! HB donor atom basicity
-    real(wp),allocatable :: hbaci(:)   ! HB acceptor atom acidity
+    !> potential parameters used in energy-gradient routine
+    real(wp),allocatable:: vbond(:,:)     ! bonds
+    real(wp),allocatable:: vangl(:,:)     ! angles
+    real(wp),allocatable:: vtors(:,:)     ! torsions
+    real(wp),allocatable:: chieeq(:)      ! atomic ENs for EEQ
+    real(wp),allocatable:: gameeq(:)      ! atomic gamma for EEQ
+    real(wp),allocatable:: alpeeq(:)      ! atomic alpha for EEQ, squared
+    real(wp),allocatable:: alphanb(:,:,:)    ! non-bonded exponent for atom pairs
+    real(wp),allocatable:: qa(:)          ! estimated atomic charges (fixed and obtained from topology EEQ)
+    real(wp),allocatable:: xyze0(:,:)     ! atom xyz, starting geom. (for Efield energy)
+    real(wp),allocatable:: zetac6(:)      ! D4 scaling factor product
+    real(wp),allocatable:: qfrag(:)       ! fragment charge (for EEQ)
+    real(wp),allocatable:: hbbas(:)       ! HB donor atom basicity
+    real(wp),allocatable:: hbaci(:)       ! HB acceptor atom acidity
+    integer,allocatable:: hb_mapABH(:)    ! mapping of indices from all atoms to only AB and H separately
+    logical,allocatable:: isABH(:)        ! logical set to true if the atom is part of a hydrogen bond
+    integer :: hb_mapNAB                  ! number of AB atoms that are part of a hydrogen bond
+    integer :: hb_mapNH                   ! number of H atoms that are part of a hydrogen bond
 
     integer,allocatable  :: ispinsyst(:,:)
     integer,allocatable  :: nspinsyst(:)
-    integer              :: nsystem
+    integer               :: nsystem
 
     type(TDispersionData) :: dispm
 
@@ -145,12 +167,12 @@ module gfnff_data_types
     procedure :: zero
 
   end type TGFFTopology
-!========================================================================================!
+
+! ══════════════════════════════════════════════════════════════════════════════
 
   !> Neighbourlist storage
   type :: TGFFNeighbourList
     logical :: initialized = .false.
-    logical :: force_hbond_update = .false.
     integer :: nhb1
     integer :: nhb2
     integer :: nxb
@@ -160,16 +182,20 @@ module gfnff_data_types
     real(wp),allocatable :: hbrefgeo(:,:)
     !> HBs loose
     integer,allocatable :: hblist1(:,:)
+    real(wp),allocatable :: hbe1(:) ! energies of HB bonds
     !> HBs bonded
     integer,allocatable :: hblist2(:,:)
+    real(wp),allocatable :: hbe2(:)
     !> XBs
     integer,allocatable :: hblist3(:,:)
+    real(wp),allocatable :: hbe3(:)
   end type TGFFNeighbourList
 
   interface new
     module procedure :: newGFFNeighbourList
   end interface
-!========================================================================================!
+
+! ══════════════════════════════════════════════════════════════════════════════
 
   !> Parametrisation data for the force field
   type :: TGFFData
@@ -289,192 +315,190 @@ module gfnff_data_types
     module procedure :: initGFFData
   end interface init
 
-!========================================================================================!
+! ══════════════════════════════════════════════════════════════════════════════
 
+  !> Generator for the force field topology
+  type TGFFGenerator
 
-   !> Generator for the force field topology
-   type TGFFGenerator
+    !> when is an angle close to linear ? (GEODEP)
+    !  for metals values closer to 170 (than to 160) are better
+    real(wp) :: linthr
 
-      !> when is an angle close to linear ? (GEODEP)
-      !  for metals values closer to 170 (than to 160) are better
-      real(wp) :: linthr
+    !> skip torsion and bending if potential is small
+    real(wp) :: fcthr
 
-      !> skip torsion and bending if potential is small
-      real(wp) :: fcthr
+    !> R threshold in Angstroem for cov distance estimated used in apprx EEQ
+    real(sp) :: tdist_thr
 
-      !> R threshold in Angstroem for cov distance estimated used in apprx EEQ
-      real(sp) :: tdist_thr
+    !> important bond determination threshold, large values yield more 1.23
+    real(wp) :: rthr
 
-      !> important bond determination threshold, large values yield more 1.23
-      real(wp) :: rthr
+    !> decrease if a metal is present, larger values yield smaller CN
+    real(wp) :: rthr2
 
-      !> decrease if a metal is present, larger values yield smaller CN
-      real(wp) :: rthr2
+    !> change of R0 for topo with charge qa
+    !  larger values yield smaller CN for metals in particular
+    real(wp) :: rqshrink
 
-      !> change of R0 for topo with charge qa
-      !  larger values yield smaller CN for metals in particular
-      real(wp) :: rqshrink
+    !> H charge (qa) threshold for H in HB list 18
+    real(wp) :: hqabthr
 
-      !> H charge (qa) threshold for H in HB list 18
-      real(wp) :: hqabthr
+    !> AB charge (qa) threshold for AB in HB list
+    !  - avoids HBs with positive atoms,
+    !  - larger val. better for S30L but worse in PubChem RMSD checks
+    real(wp) :: qabthr
 
-      !> AB charge (qa) threshold for AB in HB list
-      !  - avoids HBs with positive atoms,
-      !  - larger val. better for S30L but worse in PubChem RMSD checks
-      real(wp) :: qabthr
+    !> Parameter
+    real(wp) :: srb1
+    real(wp) :: srb2
+    real(wp) :: srb3
 
-      !> Parameter
-      real(wp) :: srb1
-      real(wp) :: srb2
-      real(wp) :: srb3
+    !> change of non-bonded rep. with q(topo)
+    real(wp) :: qrepscal
 
-      !> change of non-bonded rep. with q(topo)
-      real(wp) :: qrepscal
+    !> change of non-bonded rep. with CN
+    real(wp) :: nrepscal
 
-      !> change of non-bonded rep. with CN
-      real(wp) :: nrepscal
+    !> HH repulsion
+    real(wp) :: hhfac
+    real(wp) :: hh13rep
+    real(wp) :: hh14rep
+    real(wp) :: bstren(9)
 
-      !> HH repulsion
-      real(wp) :: hhfac
-      real(wp) :: hh13rep
-      real(wp) :: hh14rep
-      real(wp) :: bstren(9)
+    !> bend FC change with polarity
+    real(wp) :: qfacBEN
 
-      !> bend FC change with polarity
-      real(wp) :: qfacBEN
+    !> torsion FC change with polarity
+    real(wp) :: qfacTOR
 
-      !> torsion FC change with polarity
-      real(wp) :: qfacTOR
+    !> tors FC 3-ring
+    real(wp) :: fr3
 
-      !> tors FC 3-ring
-      real(wp) :: fr3
+    !> tors FC 4-ring
+    real(wp) :: fr4
 
-      !> tors FC 4-ring
-      real(wp) :: fr4
+    !> tors FC 5-ring
+    real(wp) :: fr5
 
-      !> tors FC 5-ring
-      real(wp) :: fr5
+    !> tors FC 6-ring
+    real(wp) :: fr6
 
-      !> tors FC 6-ring
-      real(wp) :: fr6
+    !> bonds
+    real(wp) :: torsf(8)
 
-      !> bonds
-      real(wp) :: torsf(8)
+    !> small bend corr.
+    real(wp) :: fbs1
 
-      !> small bend corr.
-      real(wp) :: fbs1
+    !> bonded ATM scal
+    real(wp) :: batmscal
 
-      !> bonded ATM scal
-      real(wp) :: batmscal
+    !> Shifts
+    real(wp) :: mchishift
 
-      !> Shifts
-      real(wp) :: mchishift
+    !> gen shift
+    real(wp) :: rabshift
 
-      !> gen shift
-      real(wp) :: rabshift
+    !> XH
+    real(wp) :: rabshifth
 
-      !> XH
-      real(wp) :: rabshifth
+    !> hypervalent
+    real(wp) :: hyper_shift
 
-      !> hypervalent
-      real(wp) :: hyper_shift
+    !> heavy
+    real(wp) :: hshift3
+    real(wp) :: hshift4
+    real(wp) :: hshift5
 
-      !> heavy
-      real(wp) :: hshift3
-      real(wp) :: hshift4
-      real(wp) :: hshift5
+    !> group 1+2 metals
+    real(wp) :: metal1_shift
 
-      !> group 1+2 metals
-      real(wp) :: metal1_shift
+    !> TM
+    real(wp) :: metal2_shift
 
-      !> TM
-      real(wp) :: metal2_shift
+    !> main group metals
+    real(wp) :: metal3_shift
 
-      !> main group metals
-      real(wp) :: metal3_shift
+    !> eta bonded
+    real(wp) :: eta_shift
 
-      !> eta bonded
-      real(wp) :: eta_shift
+    !> Charge Param
+    real(wp) :: qfacbm(0:4)
 
-      !> Charge Param
-      real(wp) :: qfacbm(0:4)
+    !> bond charge dependent
+    real(wp) :: qfacbm0
 
-      !> bond charge dependent
-      real(wp) :: qfacbm0
+    !> topo dist scaling
+    real(wp) :: rfgoed1
 
-      !> topo dist scaling
-      real(wp) :: rfgoed1
+    !> Hückel Param
+    !  decrease Hueckel off-diag for triple bonds because they are less well conjugated 1.4
+    real(wp) :: htriple
 
-      !> Hückel Param
-      !  decrease Hueckel off-diag for triple bonds because they are less well conjugated 1.4
-      real(wp) :: htriple
+    !> increase pot depth depending on P
+    real(wp) :: hueckelp2
 
-      !> increase pot depth depending on P
-      real(wp) :: hueckelp2
+    !> diagonal element change with qa
+    real(wp) :: hueckelp3
 
-      !> diagonal element change with qa
-      real(wp) :: hueckelp3
+    !> diagonal element relative to C
+    real(wp) :: hdiag(17)
 
-      !> diagonal element relative to C
-      real(wp) :: hdiag(17)
+    !> Huckel off-diag constants
+    real(wp) :: hoffdiag(17)
 
-      !> Huckel off-diag constants
-      real(wp) :: hoffdiag(17)
+    !> iteration mixing
+    real(wp) :: hiter
 
-      !> iteration mixing
-      real(wp) :: hiter
+    !> diagonal qa dep.
+    real(wp) :: hueckelp
 
-      !> diagonal qa dep.
-      real(wp) :: hueckelp
+    !> ref P value R shift
+    real(wp) :: bzref
 
-      !> ref P value R shift
-      real(wp) :: bzref
+    !> ref P value k stretch
+    real(wp) :: bzref2
 
-      !> ref P value k stretch
-      real(wp) :: bzref2
+    !> 2el diag shift
+    real(wp) :: pilpf
 
-      !> 2el diag shift
-      real(wp) :: pilpf
+    !> the Hückel iterations can diverge so take only a few steps
+    real(wp) :: maxhiter
 
-      !> the Hückel iterations can diverge so take only a few steps
-      real(wp) :: maxhiter
+    !> D3 Param
+    real(wp) :: d3a1
 
-      !> D3 Param
-      real(wp) :: d3a1
+    !> D3
+    real(wp) :: d3a2
 
-      !> D3
-      real(wp) :: d3a2
+    !> mixing of sp^n with sp^n-1
+    real(wp) :: split0
 
-      !> mixing of sp^n with sp^n-1
-      real(wp) :: split0
+    !> mixing of sp^n with sp^n-1
+    real(wp) :: split1
 
-      !> mixing of sp^n with sp^n-1
-      real(wp) :: split1
+    !> str ring size dep.
+    real(wp) :: fringbo
 
-      !> str ring size dep.
-      real(wp) :: fringbo
+    !> three coord. heavy eq. angle
+    real(wp) :: aheavy3
 
-      !> three coord. heavy eq. angle
-      real(wp) :: aheavy3
+    !> four coord. heavy eq. angle
+    real(wp) :: aheavy4
+    real(wp) :: bsmat(0:3,0:3)
 
-      !> four coord. heavy eq. angle
-      real(wp) :: aheavy4
-      real(wp) :: bsmat(0:3,0:3)
+    !> max CN cut-off
+    real(wp) :: cnmax
 
-      !> max CN cut-off
-      real(wp) :: cnmax
+  end type TGFFGenerator
 
-   end type TGFFGenerator
-
-
-!========================================================================================!
-!========================================================================================!
+! ══════════════════════════════════════════════════════════════════════════════
+! ══════════════════════════════════════════════════════════════════════════════
 contains  !> MODULE PROCEDURES START HERE
-!========================================================================================!
-!========================================================================================!
+! ══════════════════════════════════════════════════════════════════════════════
+! ══════════════════════════════════════════════════════════════════════════════
 
   subroutine zero(self)
-    class(TGFFTopology),intent(inout) :: self
+    class(TGFFTopology),intent(out) :: self
 
     self%nbond = 0
     self%nangl = 0
@@ -494,8 +518,10 @@ contains  !> MODULE PROCEDURES START HERE
     self%ntors_alloc = 0
 
     self%read_file_type = 0
+
   end subroutine zero
-!========================================================================================!
+
+! ──────────────────────────────────────────────────────────────────────────────
 
   !> Initialize new instance for the neighbourlist
   subroutine newGFFNeighbourList(self,n,nhb1,nhb2,nxb)
@@ -510,11 +536,15 @@ contains  !> MODULE PROCEDURES START HERE
     self%nxb = nxb
     allocate (self%q(n),source=0.0_wp)
     allocate (self%hbrefgeo(3,n),source=0.0_wp)
-    allocate (self%hblist1(3,self%nhb1),source=0)
-    allocate (self%hblist2(3,self%nhb2),source=0)
-    allocate (self%hblist3(3,self%nxb),source=0)
+    allocate (self%hblist1(5,self%nhb1),source=0)
+    allocate (self%hblist2(5,self%nhb2),source=0)
+    allocate (self%hblist3(5,self%nxb),source=0)
+    allocate (self%hbe1(self%nhb1),source=0.0_wp)
+    allocate (self%hbe2(self%nhb2),source=0.0_wp)
+    allocate (self%hbe3(self%nxb),source=0.0_wp)
   end subroutine newGFFNeighbourList
-!========================================================================================!
+
+! ──────────────────────────────────────────────────────────────────────────────
 
   !> Initialize a new instance of the parametrisation data
   subroutine initGFFData(self,ndim)
@@ -561,7 +591,8 @@ contains  !> MODULE PROCEDURES START HERE
 
   end subroutine initGFFData
 
-!========================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
+
   subroutine initGFFDispersion(self)
     type(TDispersionData),intent(out) :: self
     integer :: elem,ref,freq
@@ -588,5 +619,47 @@ contains  !> MODULE PROCEDURES START HERE
 
   end subroutine initGFFDispersion
 
-!========================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
+
+  subroutine init_cell(self,lattice,npbc)
+    class(TCell) :: self
+    real(wp),intent(in) :: lattice(3,3)
+    integer,intent(in),optional :: npbc
+
+    if (present(npbc)) then
+      self%npbc = npbc
+    end if
+    self%lattice = lattice
+    if (self%npbc > 0) then
+      self%pbc(1:self%npbc) = .true.
+    end if
+    !> cell volume = |det(lattice)| via cofactor expansion along first row
+    self%volume = abs(lattice(1,1)*(lattice(2,2)*lattice(3,3)-lattice(3,2)*lattice(2,3)) &
+                         & -lattice(1,2)*(lattice(2,1)*lattice(3,3)-lattice(3,1)*lattice(2,3)) &
+                         & +lattice(1,3)*(lattice(2,1)*lattice(3,2)-lattice(3,1)*lattice(2,2)))
+    !> reciprocal lattice = 2π * inverse transpose of lattice
+    !> rec_lat(:,i) = 2π * (a_j x a_k) / V, computed via cofactor matrix / V
+    !> matches xtb convention: G = 2π * A^{-T} * n, required by the Ewald summation routines
+    block
+      real(wp),parameter :: tpi = 2.0_wp*acos(-1.0_wp)
+      self%rec_lat(1,1) = tpi*(lattice(2,2)*lattice(3,3)-lattice(3,2)*lattice(2,3))/self%volume
+      self%rec_lat(2,1) = tpi*(lattice(3,2)*lattice(1,3)-lattice(1,2)*lattice(3,3))/self%volume
+      self%rec_lat(3,1) = tpi*(lattice(1,2)*lattice(2,3)-lattice(2,2)*lattice(1,3))/self%volume
+      self%rec_lat(1,2) = tpi*(lattice(2,3)*lattice(3,1)-lattice(3,3)*lattice(2,1))/self%volume
+      self%rec_lat(2,2) = tpi*(lattice(3,3)*lattice(1,1)-lattice(1,3)*lattice(3,1))/self%volume
+      self%rec_lat(3,2) = tpi*(lattice(1,3)*lattice(2,1)-lattice(2,3)*lattice(1,1))/self%volume
+      self%rec_lat(1,3) = tpi*(lattice(2,1)*lattice(3,2)-lattice(3,1)*lattice(2,2))/self%volume
+      self%rec_lat(2,3) = tpi*(lattice(3,1)*lattice(1,2)-lattice(1,1)*lattice(3,2))/self%volume
+      self%rec_lat(3,3) = tpi*(lattice(1,1)*lattice(2,2)-lattice(2,1)*lattice(1,2))/self%volume
+    end block
+  end subroutine init_cell
+
+  subroutine init_wsc(self,nat,at,xyz)
+    class(TCell) :: self
+    integer,intent(in) :: nat,at(nat)
+    real(wp),intent(in) :: xyz(3,nat)
+    call generate_wsc(nat,at,xyz,self%lattice,self%pbc,self%wsc)
+  end subroutine init_wsc
+
+! ══════════════════════════════════════════════════════════════════════════════
 end module gfnff_data_types

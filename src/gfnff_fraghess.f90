@@ -1,7 +1,7 @@
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 ! This file is part of gfnff.
 !
-! Copyright (C) 2023 Philipp Pracht
+! Copyright (C) 2023-2026 Philipp Pracht
 !
 ! gfnff is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -15,11 +15,11 @@
 !
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with gfnff. If not, see <https://www.gnu.org/licenses/>.
-!--------------------------------------------------------------------------------!
+! ──────────────────────────────────────────────────────────────────────────────
 !> The original (unmodified) source code can be found under the GNU LGPL 3.0 license
 !> Copyright (C) 2019-2020 Sebastian Ehlert, Sebastian Spicher, Stefan Grimme
 !> at https://github.com/grimme-lab/xtb
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !in gfnff_ini:
@@ -31,8 +31,9 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 module gfnff_fraghess
   use iso_fortran_env,only:wp => real64,sp => real32
-  !$ use omp_lib
+!$ use omp_lib
   use gfnff_helpers,only:mrecgff,lin
+  use gfnff_neighbor,only:TNeigh
   implicit none
   public
 
@@ -71,13 +72,29 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 
   subroutine fragmentize(nspin,at,xyz,maxsystem,maxmagnat,jab,neigh,ispinsyst,nspinsyst,nsystem)
+    !***********************************************************************
+    !* Fragment a large molecular system for the fragment Hessian approach.
+    !*
+    !* INPUT:
+    !*   nspin      - number of atoms
+    !*   at(nspin)  - atomic numbers
+    !*   xyz(3,nspin) - Cartesian coordinates (Bohr)
+    !*   maxsystem  - max number of fragments
+    !*   maxmagnat  - max atoms per fragment
+    !*   jab        - pairwise distances array
+    !*   neigh      - TNeigh neighbour list (uses cell 1, i.e. molecular)
+    !* OUTPUT:
+    !*   ispinsyst  - atom index list per fragment
+    !*   nspinsyst  - number of atoms per fragment
+    !*   nsystem    - total number of fragments
+    !***********************************************************************
     implicit none
 
     !Dummy Arguments:
     integer,intent(in)  :: nspin                              ! # of atoms in the whole system
     integer,intent(in)  :: maxsystem                          ! maximum # of fragments
     integer,intent(in)  :: maxmagnat                          ! maximum # of atoms per fragment
-    integer,intent(in)  :: neigh(20,nspin)                   ! neighbour list
+    type(TNeigh),intent(in) :: neigh                          ! neighbour list (TNeigh)
     integer,intent(in)  :: at(nspin)                          ! atom nunber
     real(wp),intent(in)  :: xyz(3,nspin)                       ! xyz coordinates
     real(wp),intent(in)  :: jab(nspin*(nspin+1)/2)           ! distances between pairs A and B
@@ -85,6 +102,9 @@ contains  !> MODULE PROCEDURES START HERE
     integer,allocatable,intent(out) :: nspinsyst(:)           ! array with # of atoms for each fragment
     integer,intent(out) :: nsystem                            ! # of fragments
     real(sp)  :: rmaxab(nspin,nspin)
+
+    !> Local flat nb array extracted from neigh%nb(:,:,1) for internal use
+    integer  :: nb_loc(20,nspin)
 
     !Stack
     integer  :: i,ati
@@ -98,7 +118,6 @@ contains  !> MODULE PROCEDURES START HERE
     integer  :: eq_frag
     integer  :: maxdistatoms(2)
     integer  :: max_linkatoms(2)
-    integer  :: assigned_to_frag(nspin)
     integer  :: precessor(nspin)
     integer  :: path(nspin)
     integer  :: fragvec(nspin)
@@ -125,6 +144,12 @@ contains  !> MODULE PROCEDURES START HERE
       return
     end if
 
+    !> Extract flat nb(20,nspin) from TNeigh (cell index 1 = molecular/no PBC)
+    nb_loc = 0
+    nb_loc(1:18,:) = neigh%nb(1:18,:,1)
+    nb_loc(19,:)   = neigh%nb(neigh%numnb-1,:,1)  ! cluster flag
+    nb_loc(20,:)   = neigh%nb(neigh%numnb,:,1)    ! neighbour count
+
 !       open (55, file="fragment.out")
 
     nci_frag_size = 50
@@ -135,7 +160,7 @@ contains  !> MODULE PROCEDURES START HERE
     grid = 0
     equal = .false.
 
-    call mrecgff(nspin,neigh,fragcount,fragvec)
+    call mrecgff(nspin,nb_loc,fragcount,fragvec)
 
     nsystem = maxval(fragvec)
 
@@ -216,7 +241,7 @@ contains  !> MODULE PROCEDURES START HERE
         do k = j,nspinsyst(i)
           ati = ispinsyst(j,i)
           atj = ispinsyst(k,i)
-          rmaxab(atj,ati) = jab(lin(atj,ati))/1.2
+          rmaxab(atj,ati) = real(jab(lin(atj,ati))/1.2,4)
           rmaxab(ati,atj) = rmaxab(atj,ati)
         end do
       end do
@@ -245,7 +270,7 @@ contains  !> MODULE PROCEDURES START HERE
       if (maxdist < huge(1.0_wp)) then
 
         !get shortest Path from A to B
-        cur_dist = shortest_distance(nspin,maxdistatoms(1),maxdistatoms(2),neigh,magdist,visited,precessor)
+        cur_dist = shortest_distance(nspin,maxdistatoms(1),maxdistatoms(2),nb_loc,magdist,visited,precessor)
         current = maxdistatoms(2)
 
         !loop while A and B are still connected
@@ -272,7 +297,7 @@ contains  !> MODULE PROCEDURES START HERE
           magdist(max_linkatoms(2),max_linkatoms(1)) = huge(1.0_wp)
 
           !Get next-shortest Path:
-          cur_dist = shortest_distance(nspin,maxdistatoms(1),maxdistatoms(2),neigh,magdist,visited,precessor)
+          cur_dist = shortest_distance(nspin,maxdistatoms(1),maxdistatoms(2),nb_loc,magdist,visited,precessor)
           current = maxdistatoms(2)
         end do ! cur_dist < huge(1.0_wp)
 
@@ -284,7 +309,7 @@ contains  !> MODULE PROCEDURES START HERE
       !Split into subsystems:
       !Overwrite old spinsystem:
 
-      cur_dist = shortest_distance(nspin,maxdistatoms(1),maxdistatoms(2),neigh,magdist,visited,precessor)
+      cur_dist = shortest_distance(nspin,maxdistatoms(1),maxdistatoms(2),nb_loc,magdist,visited,precessor)
       nspinsyst(ass) = count(visited)
       ispinsyst(:,ass) = 0
       k = 1
@@ -296,7 +321,7 @@ contains  !> MODULE PROCEDURES START HERE
       end do ! End Loop over  i from 1 to count(visited)
 
       !add new spinsystem
-      cur_dist = shortest_distance(nspin,maxdistatoms(2),maxdistatoms(1),neigh,magdist,visited,precessor)
+      cur_dist = shortest_distance(nspin,maxdistatoms(2),maxdistatoms(1),nb_loc,magdist,visited,precessor)
       nsystem = nsystem+1
       nspinsyst(nsystem) = count(visited)
       k = 1
@@ -353,7 +378,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: nsystem                            ! # of fragments
     !Stack
     integer                  :: isystem
-    integer                  :: i,j,ii,jj,k
+    integer :: i,j,ii,jj
     integer                  :: nat3                         ! # of atoms in the system * 3
     integer                  :: nat_cur                      ! # of atoms in fragment
     integer                  :: nat3_cur                     ! nat in fragments * 3
@@ -527,6 +552,8 @@ contains  !> MODULE PROCEDURES START HERE
     integer               :: i
     real(wp)              :: sumw
     real(wp)              :: sumwx,sumwy,sumwz
+
+    if(.false.)  i = at(1) ! silences -Wunused-dummy-argument
 
     sumw = 0
     sumwx = 0.d0

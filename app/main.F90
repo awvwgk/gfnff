@@ -28,15 +28,13 @@ program gfnff_main_tester
   integer :: nat
   integer,allocatable :: at(:)
   real(wp),allocatable :: xyz(:,:)
-  integer :: i,j,k,l
-  character(len=50) :: atmp
+  integer :: i
 !========================================================================================!
   integer :: ichrg
   character(len=:),allocatable :: alpbsolvent
   real(wp) :: energy
   real(wp),allocatable :: gradient(:,:)
   real(wp) :: gnorm
-  logical :: fail,pr
   integer :: io
   type(gfnff_data) :: calculator
   type(gfnff_timer) :: timer
@@ -58,8 +56,6 @@ program gfnff_main_tester
   call print_header()
 
   !> DEFAULTS
-  pr = .true.
-
   ichrg = 0 !> molecular charge
   energy = 0.0_wp
   gnorm = 0.0_wp
@@ -102,8 +98,8 @@ program gfnff_main_tester
   call timer%new(2,.true.)
 !>--- First, setup of parametrisation and topology into calculator
   call timer%measure(1,'GFN-FF topology setup')
-!  call gfnff_initialize(nat,at,xyz,calculator,print=.true.,verbose=.true.,ichrg=ichrg,iostat=io)
-  call calculator%init(nat,at,xyz,print=pr,verbose=pr,ichrg=ichrg,iostat=io)
+!  call gfnff_initialize(nat,at,xyz,calculator,printlevel=2,ichrg=ichrg,iostat=io)
+  call calculator%init(nat,at,xyz,printlevel=2,ichrg=ichrg,iostat=io)
   write (*,*)
   if (io == 0) then
     write (*,*) 'Topology setup successful!'
@@ -118,8 +114,8 @@ program gfnff_main_tester
   write (*,*)
   write (stdout,'(1x,a)',advance='no') 'Performing GFN-FF singlepoint calculation ... '
   call timer%measure(2,'GFN-FF energy evaluation')
-!  call gfnff_singlepoint(nat,at,xyz,calculator,energy,gradient,pr,iostat=io)
-  call calculator%singlepoint(nat,at,xyz,energy,gradient,verbose=pr,iostat=io)
+!  call gfnff_singlepoint(nat,at,xyz,calculator,energy,gradient,printlevel=2,iostat=io)
+  call calculator%singlepoint(nat,at,xyz,energy,gradient,printlevel=2,iostat=io)
   if (io == 0) then
     write (*,*) 'success!'
   else
@@ -169,7 +165,7 @@ subroutine ParseCommandLineArgs(threads,inputfile,ichrg,alpbsolvent)
   use xyzreader
   implicit none
   character(len=256) :: arg,arg2 ! Buffer to hold each argument
-  integer :: numArgs,i,j     ! Variables to store argument count and loop index
+  integer :: numArgs,i ! Variables to store argument count and loop index
   integer :: io,dumi
   real(wp) :: dum
   !> IN/OUTPUTS

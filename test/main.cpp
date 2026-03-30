@@ -33,6 +33,7 @@ void run_singlepoint_test() {
 
   double energy;
   double gradient[nat][3];
+  double sigma[3][3];  // stress tensor (zero for non-PBC)
   int iostat;
   const char *solvent = "h2o";
 
@@ -55,7 +56,7 @@ void run_singlepoint_test() {
 
   // Run the singlepoint calculation
   c_gfnff_calculator_singlepoint(&calc, nat, at, xyz, &energy, gradient,
-                                 &iostat);
+                                 sigma, &iostat);
 
   if (iostat == 0) {
     std::cout << "Singlepoint calculation successful.\n";
@@ -68,6 +69,12 @@ void run_singlepoint_test() {
                   << "\n";
       }
     }
+
+    // Print the stress tensor (molecular — expect zeros from C interface)
+    std::cout << "Sigma (molecular, should be zeroed):\n";
+    for (int i = 0; i < 3; ++i)
+      for (int j = 0; j < 3; ++j)
+        std::cout << "  sigma[" << i << "][" << j << "] = " << sigma[i][j] << "\n";
   } else {
     std::cerr << "Singlepoint calculation failed with iostat = " << iostat
               << "\n";
@@ -81,7 +88,70 @@ void run_singlepoint_test() {
   c_gfnff_calculator_deallocate(&calc);
 }
 
+void run_pbc_singlepoint_test() {
+  // SiO2 alpha-quartz unit cell (9 atoms, hexagonal lattice)
+  const int nat = 9;
+  int at[nat] = {8, 8, 8, 8, 8, 8, 14, 14, 14};
+  double xyz[nat][3] = {
+      { 2.82781861325240,  2.96439280874170,  3.12827803849279},
+      { 7.19124230791576,  0.98723342603994,  4.89004701836746},
+      { 4.95491880597601,  4.82830910314898,  8.74847811174740},
+      { 0.19290883043307,  2.30645007856310,  8.72969832061507},
+      {-2.01592208020090,  6.16478744235115,  4.87273962147340},
+      { 0.66183062221384,  7.07392578563696,  0.27767968372345},
+      { 4.55701736204879,  0.06291337111965,  3.31745840478609},
+      {-2.10064209975148,  3.63969476409878,  6.81014625000326},
+      { 2.31009832827224,  4.12572862149043,  0.08842485276656}};
+  // Each C row maps to a Fortran column (lattice vector)
+  const double a = 9.28422449595511046;
+  const double c = 10.21434769907115;
+  double lattice[3][3] = {
+      {a,        0.0,                    0.0},  // a1
+      {a * -0.5, a * 0.86602540378443865, 0.0},  // a2
+      {0.0,      0.0,                    c  }};  // a3
+  int npbc = 3;
+
+  double energy;
+  double gradient[nat][3];
+  double sigma[3][3];  // stress tensor
+  int iostat;
+
+  c_gfnff_calculator calc = c_gfnff_calculator_init_pbc(
+      nat, at, xyz, 0, 1, lattice, npbc);
+
+  if (calc.ptr == NULL) {
+    std::cerr << "Error initializing PBC gfnff calculator.\n";
+    return;
+  }
+
+  c_gfnff_calculator_singlepoint(&calc, nat, at, xyz, &energy, gradient,
+                                 sigma, &iostat);
+
+  if (iostat == 0) {
+    std::cout << "PBC singlepoint calculation successful.\n";
+    std::cout << "PBC Energy: " << energy << "\n";
+    for (int i = 0; i < 3; ++i) {
+      std::cout << "PBC Gradient[0][" << i << "] = " << gradient[0][i] << "\n";
+    }
+
+    // Print the PBC stress tensor
+    std::cout << "Sigma (PBC):\n";
+    for (int i = 0; i < 3; ++i)
+      for (int j = 0; j < 3; ++j)
+        std::cout << "  sigma[" << i << "][" << j << "] = " << sigma[i][j] << "\n";
+  } else {
+    std::cerr << "PBC singlepoint calculation failed with iostat = " << iostat
+              << "\n";
+  }
+
+  int iunit = 6;
+  c_gfnff_calculator_results(&calc, iunit);
+
+  c_gfnff_calculator_deallocate(&calc);
+}
+
 int main() {
   run_singlepoint_test();
+  run_pbc_singlepoint_test();
   return 0;
 }

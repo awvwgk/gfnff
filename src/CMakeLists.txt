@@ -1,13 +1,12 @@
 
-IF(WITH_GBSA)
 add_subdirectory("gbsa")
-ENDIF()
 
 set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 list(APPEND srcs
    "${dir}/gfnff_math_wrapper.f90"
    "${dir}/gfnff_data_types.f90"
+   "${dir}/gfnff_neighbor.f90"
    "${dir}/gfnff_param.f90"
    "${dir}/dftd3param.f90"
    "${dir}/dftd4param.f90"
@@ -17,8 +16,11 @@ list(APPEND srcs
    "${dir}/gfnff_cn.f90"
    "${dir}/gfnff_gdisp0.f90"
    "${dir}/gfnff_qm.f90"
+   "${dir}/gfnff_wsc.f90"
+   "${dir}/gfnff_timer_mod.f90"
    "${dir}/gfnff_ini2.f90"
    "${dir}/gfnff_ini.f90"
+   "${dir}/gfnff_latticepoint.f90"
    "${dir}/gfnff_alpb.F90"
    "${dir}/gfnff_engrad.F90"
    "${dir}/gfnff_restart.f90"

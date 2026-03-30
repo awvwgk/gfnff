@@ -51,11 +51,12 @@ int main() {
   // Use the calculator...
   double energy;
   double gradient[nat][3]; // Adjust the size to match nat
+  double sigma[3][3];      // stress tensor (zero for non-PBC)
   int iostat;
 
   // Call the singlepoint function
   c_gfnff_calculator_singlepoint(&calc, nat, at, xyz, &energy, gradient,
-                                 &iostat);
+                                 sigma, &iostat);
 
   // Check the result and print it
   if (iostat == 0) {
@@ -67,6 +68,12 @@ int main() {
       int j = 0;
       printf("Gradient[%d][%d] = %e\n", j, i, gradient[j][i]);
     }
+
+    // Print the stress tensor
+    printf("Sigma (molecular, should be zeroed):\n");
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        printf("  sigma[%d][%d] = %e\n", i, j, sigma[i][j]);
   } else {
     printf("Singlepoint calculation failed with iostat = %d\n", iostat);
   }
@@ -84,6 +91,72 @@ int main() {
     printf("gfnff calculator deallocated successfully.\n");
   } else {
     printf("Error deallocating gfnff calculator.\n");
+  }
+
+  // ── PBC test: SiO2 alpha-quartz unit cell ────────────────────────────────────
+  printf("\n--- PBC test: SiO2 alpha-quartz unit cell ---\n");
+
+  int nat_pbc = 9;
+  int at_pbc[9] = {8, 8, 8, 8, 8, 8, 14, 14, 14};
+  double xyz_pbc[9][3] = {
+      { 2.82781861325240,  2.96439280874170,  3.12827803849279},
+      { 7.19124230791576,  0.98723342603994,  4.89004701836746},
+      { 4.95491880597601,  4.82830910314898,  8.74847811174740},
+      { 0.19290883043307,  2.30645007856310,  8.72969832061507},
+      {-2.01592208020090,  6.16478744235115,  4.87273962147340},
+      { 0.66183062221384,  7.07392578563696,  0.27767968372345},
+      { 4.55701736204879,  0.06291337111965,  3.31745840478609},
+      {-2.10064209975148,  3.63969476409878,  6.81014625000326},
+      { 2.31009832827224,  4.12572862149043,  0.08842485276656}};
+  // Hexagonal lattice: a=b=9.284 Bohr, c=10.214 Bohr, gamma=120 deg
+  // Each C row maps to a Fortran column (lattice vector)
+  double a_sio2 = 9.28422449595511046;
+  double c_sio2 = 10.21434769907115;
+  double lattice_sio2[3][3] = {
+      {a_sio2,           0.0,                          0.0   },  // a1
+      {a_sio2 * (-0.5),  a_sio2 * 0.86602540378443865, 0.0   },  // a2
+      {0.0,              0.0,                          c_sio2}};  // a3
+  int npbc = 3;
+
+  c_gfnff_calculator calc_pbc =
+      c_gfnff_calculator_init_pbc(nat_pbc, at_pbc, xyz_pbc, 0, 1,
+                                  lattice_sio2, npbc);
+
+  if (calc_pbc.ptr == NULL) {
+    printf("Error initializing PBC gfnff calculator.\n");
+    return 1;
+  }
+  printf("PBC gfnff calculator initialized successfully.\n");
+
+  double energy_pbc;
+  double gradient_pbc[9][3];
+  double sigma_pbc[3][3];  // stress tensor
+  int iostat_pbc;
+
+  c_gfnff_calculator_singlepoint(&calc_pbc, nat_pbc, at_pbc, xyz_pbc,
+                                 &energy_pbc, gradient_pbc, sigma_pbc,
+                                 &iostat_pbc);
+
+  if (iostat_pbc == 0) {
+    printf("PBC singlepoint calculation successful.\n");
+    printf("PBC Energy: %f\n", energy_pbc);
+    for (int i = 0; i < 3; i++) {
+      int j = 0;
+      printf("PBC Gradient[%d][%d] = %e\n", j, i, gradient_pbc[j][i]);
+    }
+
+    // Print the PBC stress tensor
+    printf("Sigma (PBC):\n");
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        printf("  sigma_pbc[%d][%d] = %e\n", i, j, sigma_pbc[i][j]);
+  } else {
+    printf("PBC singlepoint calculation failed with iostat = %d\n", iostat_pbc);
+  }
+
+  c_gfnff_calculator_deallocate(&calc_pbc);
+  if (calc_pbc.ptr == NULL) {
+    printf("PBC gfnff calculator deallocated successfully.\n");
   }
 
   return 0;

@@ -1,7 +1,7 @@
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 ! This file is part of gfnff.
 !
-! Copyright (C) 2025 Philipp Pracht
+! Copyright (C) 2023-2026 Philipp Pracht
 !
 ! gfnff is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -15,7 +15,7 @@
 !
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with gfnff. If not, see <https://www.gnu.org/licenses/>.
-!================================================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 
 !> c bindings for gfnff
 
@@ -29,6 +29,7 @@ module gfnff_interface_c
   !> Public C-compatible interface
   public :: c_gfnff_calculator
   public :: c_gfnff_calculator_init
+  public :: c_gfnff_calculator_init_pbc
   public :: c_gfnff_calculator_deallocate
   public :: c_gfnff_calculator_singlepoint
   public :: c_gfnff_calculator_results
@@ -74,28 +75,22 @@ contains  !> MODULE PROCEDURES START HERE
     integer,pointer :: at(:)
     real(wp),pointer :: xyz(:,:)
     character(len=:),allocatable :: solvent
-    logical :: verbose,pr
-    integer :: iunit,printlevel,iostatus
-    integer :: i,ichrg
+    integer :: printlevel,iostatus
+    integer :: ichrg
 
     !> Convert C arguments to Fortran types
     nat = c_nat
     call c_f_pointer(c_loc(c_at),at, [nat])
     call c_f_pointer(c_loc(c_xyz),xyz, [3,nat]) !> assumes xyz[nat][3] in C
     ichrg = c_ichrg
-    pr = .false.
-    verbose = .false.
-    iunit = stdout !> use a default here.
     printlevel = c_printlevel
-    if (printlevel > 0) pr = .true.
-    if (printlevel > 1) verbose = .true.
     solvent = c_string_to_fortran(c_solvent)
     if (len_trim(solvent) == 0) deallocate (solvent)
 
     !> Allocate and initialize the Fortran calculator
     allocate (calc)
     call calc%init(nat,at,xyz,ichrg=ichrg, &
-    &              print=pr,verbose=verbose,iunit=iunit,iostat=iostatus,&
+    &              printlevel=printlevel,iostat=iostatus,&
     &              solvent=solvent)
     if (iostatus == 0) then
       !> Store the pointer in the C-compatible structure
@@ -106,6 +101,62 @@ contains  !> MODULE PROCEDURES START HERE
       deallocate (calc)
     end if
   end function c_gfnff_calculator_init
+
+!========================================================================================!
+
+!>--- C-compatible initialization function with PBC support
+  function c_gfnff_calculator_init_pbc(c_nat,c_at,c_xyz,c_ichrg,c_printlevel, &
+    &                                  c_lattice,c_npbc) &
+    &                                  result(calculator) &
+    &                                  bind(C,name="c_gfnff_calculator_init_pbc")
+    !***********************************************************
+    !* PBC-aware version of c_gfnff_calculator_init.
+    !*
+    !* INPUT:
+    !*   c_nat         - number of atoms
+    !*   c_at(c_nat)   - atomic numbers
+    !*   c_xyz[nat][3] - Cartesian coordinates (Bohr), C row-major
+    !*   c_ichrg       - total molecular charge
+    !*   c_printlevel  - verbosity (0=silent)
+    !*   c_lattice[3][3] - lattice vectors (Bohr), C row-major
+    !*   c_npbc        - number of periodic dimensions (0-3)
+    !***********************************************************
+    implicit none
+    type(c_gfnff_calculator) :: calculator
+    integer(c_int),value,intent(in) :: c_nat
+    integer(c_int),target,intent(in) :: c_at(*)
+    real(c_double),target,intent(in) :: c_xyz(3,*)
+    integer(c_int),value,intent(in) :: c_ichrg
+    integer(c_int),value,intent(in) :: c_printlevel
+    !> lattice passed as double[3][3] in C (row-major), maps to Fortran (3,3)
+    real(c_double),intent(in) :: c_lattice(3,3)
+    integer(c_int),value,intent(in) :: c_npbc
+    type(gfnff_data),pointer :: calc
+
+    integer :: nat,npbc
+    integer,pointer :: at(:)
+    real(wp),pointer :: xyz(:,:)
+    integer :: printlevel,iostatus,ichrg
+
+    nat = c_nat
+    call c_f_pointer(c_loc(c_at),at,[nat])
+    call c_f_pointer(c_loc(c_xyz),xyz,[3,nat])
+    ichrg = c_ichrg
+    printlevel = c_printlevel
+    npbc = c_npbc
+
+    allocate(calc)
+    call calc%init(nat,at,xyz,ichrg=ichrg, &
+    &              printlevel=printlevel,iostat=iostatus, &
+    &              lattice=c_lattice,npbc=npbc)
+    if (iostatus == 0) then
+      calculator%ptr = c_loc(calc)
+    else
+      write(stderr,'(a,i0)') 'Error initializing GFN-FF PBC calculator. code ',iostatus
+      calculator%ptr = c_null_ptr
+      deallocate(calc)
+    end if
+  end function c_gfnff_calculator_init_pbc
 
 !========================================================================================!
 
@@ -130,8 +181,23 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 
   subroutine c_gfnff_calculator_singlepoint(c_calculator,c_nat,c_at,c_xyz, &
-    &                                           c_energy,c_gradient,c_iostat) &
+    &                                           c_energy,c_gradient,c_sigma,c_iostat) &
     &                        bind(C,name="c_gfnff_calculator_singlepoint")
+    !***********************************************************
+    !* Compute energy, gradient and stress tensor for the
+    !* current geometry.
+    !*
+    !* INPUT:
+    !*   c_calculator  - opaque handle (from init)
+    !*   c_nat         - number of atoms
+    !*   c_at(c_nat)   - atomic numbers
+    !*   c_xyz[nat][3] - Cartesian coordinates (Bohr)
+    !* OUTPUT:
+    !*   c_energy      - total energy (Hartree)
+    !*   c_gradient[nat][3] - gradient (Eh/Bohr)
+    !*   c_sigma[3][3] - stress tensor (Hartree); zero for non-PBC
+    !*   c_iostat      - error status (0 = success)
+    !***********************************************************
     implicit none
     !> Input arguments from C
     type(c_gfnff_calculator),intent(inout) :: c_calculator
@@ -142,6 +208,7 @@ contains  !> MODULE PROCEDURES START HERE
     !> Output arguments to C
     real(c_double),intent(out) :: c_energy
     real(c_double),target,intent(out) :: c_gradient(3,*) !> NOTE Fortran/C matrix orders
+    real(c_double),intent(out) :: c_sigma(3,3)            !> stress tensor (Eh); 0 for non-PBC
     integer(c_int),intent(out) :: c_iostat
 
     !> Local Fortran variables
@@ -151,7 +218,8 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),pointer :: xyz(:,:)
     real(wp),pointer :: grad(:,:)
     real(wp) :: energy
-    integer :: iostat,i,j
+    real(wp) :: sigma_loc(3,3)
+    integer :: iostat
 
     !> Convert C pointers to Fortran pointers
     call c_f_pointer(c_calculator%ptr,calc_ptr)
@@ -162,12 +230,22 @@ contains  !> MODULE PROCEDURES START HERE
     !> Set the integer variable
     nat = c_nat
 
-    !> Call the Fortran subroutine
-    call calc_ptr%singlepoint(nat,at,xyz,energy,grad,iostat=iostat)
+    !> Call the Fortran subroutine, passing the stored lattice so that
+    !> the singlepoint does not reinitialize the cell with a zero lattice
+    !> (which would corrupt PBC calculations).
+    call calc_ptr%singlepoint(nat,at,xyz,energy,grad,iostat=iostat, &
+    &                         lattice=calc_ptr%cell%lattice,sigma=sigma_loc)
 
     !> Pass back the results to C variables
     c_energy = energy
     c_gradient(1:3,1:nat) = grad(1:3,1:nat)
+    !> Zero sigma for non-periodic systems; Fortran accumulates virial-style
+    !> contributions regardless of PBC, so we suppress them here.
+    if (calc_ptr%cell%npbc > 0) then
+      c_sigma(1:3,1:3) = sigma_loc(1:3,1:3)
+    else
+      c_sigma(1:3,1:3) = 0.0_wp
+    end if
     c_iostat = iostat
 
   end subroutine c_gfnff_calculator_singlepoint
