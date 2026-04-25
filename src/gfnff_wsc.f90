@@ -173,17 +173,17 @@ contains  !> MODULE PROCEDURES START HERE
     wsc%at = 0
     wsc%itbl = 0
 
-    !$omp parallel default(none) &
-    !$omp private(ii,jj,aa,bb,cc,wc,c,dist,trans,t,lattr,rw) &
-    !$omp shared(nat,at,xyz,lattice,wsc,rep) &
-    !$omp private(mindist,minpos,nmindist,nminpos)
+    !!$omp parallel default(none) &
+    !!$omp private(ii,jj,aa,bb,cc,wc,c,dist,trans,t,lattr,rw) &
+    !!$omp shared(nat,at,xyz,lattice,wsc,rep) &
+    !!$omp private(mindist,minpos,nmindist,nminpos)
 
     allocate (lattr(3,wsc%cells),source=0)
     allocate (dist(wsc%cells),source=0.0_wp)
     allocate (trans(wsc%cells),source=.true.)
 
     ! Each WSC of one atom consists of n atoms
-    !$omp do collapse(2) schedule(dynamic,32)
+    !!$omp do collapse(2) schedule(dynamic,32)
     do ii = 1,nat
       do jj = 1,nat
         !if (ii.eq.jj) cycle
@@ -237,9 +237,9 @@ contains  !> MODULE PROCEDURES START HERE
         end if
       end do
     end do
-    !$omp end do
+    !!$omp end do
     deallocate (lattr,dist,trans)
-    !$omp end parallel
+    !!$omp end parallel
 
   end subroutine generate_wsc
 ! ══════════════════════════════════════════════════════════════════════════════

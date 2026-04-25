@@ -267,7 +267,7 @@ contains  !> MODULE PROCEDURES START HERE
     end do
     if (cell%npbc .ne. 0) then
       dist = 0.0_wp
-      !$omp parallel do collapse(2) default(none) shared(dist,xyz) &
+      !$omp parallel do collapse(2) default(none) shared(dist,xyz,n) &
       !$omp private(i,j)
       do i = 1,n
         do j = 1,n
