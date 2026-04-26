@@ -400,6 +400,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (cell%npbc .eq. 0) then
       if (pr) call timer%measure(3,'dCN')
       call gfnff_dlogcoord(n,at,xyz,srab,cn,dcn,cnthr,param) ! new erf used in GFN0
+      dcndL = 0.0_wp
       dhbcndL = 0.0_wp
       if (sum(neigh%nr_hb) .gt. 0) call dncoord_erf(n,at,xyz,param%rcov,hb_cn,hb_dcn,900.0d0,topo,neigh,dhbcndL) ! HB erf CN
       if (pr) call timer%measure(3)
